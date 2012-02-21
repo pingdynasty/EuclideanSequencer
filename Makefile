@@ -70,10 +70,10 @@ REMOVE = rm -f
 MV = mv -f
 
 # Define all object files.
-OBJ = $(SRC:.c=.o) $(CXXSRC:.cpp=.o) $(ASRC:.S=.o) 
+OBJ = $(SRC:%.c=build/%.o) $(CXXSRC:%.cpp=build/%.o) $(ASRC:%.S=build/%.o) 
 
 # Define all listing files.
-LST = $(ASRC:.S=.lst) $(CXXSRC:.cpp=.lst) $(SRC:.c=.lst)
+LST = $(ASRC:.s=.lst) $(CXXSRC:.cpp=.lst) $(SRC:.c=.lst)
 
 # Combine all necessary flags and optional flags.
 # Add target processor to flags.
@@ -117,11 +117,11 @@ COFFCONVERT=$(OBJCOPY) --debugging \
 
 
 coff: build/$(TARGET).elf
-	$(COFFCONVERT) -O coff-avr build/$(TARGET).elf $(TARGET).cof
+	$(COFFCONVERT) -O coff-avr build/$(TARGET).elf build/$(TARGET).cof
 
 
-extcoff: $(TARGET).elf
-	$(COFFCONVERT) -O coff-ext-avr build/$(TARGET).elf $(TARGET).cof
+extcoff: build/$(TARGET).elf
+	$(COFFCONVERT) -O coff-ext-avr build/$(TARGET).elf build/$(TARGET).cof
 
 
 .SUFFIXES: .elf .hex .eep .lss .sym
@@ -149,32 +149,31 @@ build/core.a: $(OBJ)
 	@for i in $(OBJ); do echo $(AR) rcs build/core.a $$i; $(AR) rcs build/core.a $$i; done
 
 
-
 # Compile: create object files from C++ source files.
-.cpp.o:
+build/%.o : %.cpp
 	$(CXX) -c $(ALL_CXXFLAGS) $< -o $@ 
 
 # Compile: create object files from C source files.
-.c.o:
+build/%.o : %.c
 	$(CC) -c $(ALL_CFLAGS) $< -o $@ 
 
 
 # Compile: create assembler files from C source files.
-.c.s:
+build/%.s : %.c
 	$(CC) -S $(ALL_CFLAGS) $< -o $@
 
 
 # Assemble: create object files from assembler source files.
-.S.o:
+build/%.o : %.s
 	$(CC) -c $(ALL_ASFLAGS) $< -o $@
-
 
 
 # Target: clean project.
 clean:
 	$(REMOVE) build/$(TARGET).hex build/$(TARGET).eep build/$(TARGET).cof build/$(TARGET).elf \
 	build/$(TARGET).map build/$(TARGET).sym build/$(TARGET).lss build/core.a \
-	$(OBJ) $(LST) $(SRC:.c=.s) $(SRC:.c=.d) $(CXXSRC:.cpp=.s) $(CXXSRC:.cpp=.d)
+	$(OBJ) $(LST) \
+	$(SRC:%.c=build/%.s) $(SRC:%.c=build/%.d) $(CXXSRC:%.cpp=build/%.s) $(CXXSRC:%.cpp=build/%.d)
 
 depend:
 	if grep '^# DO NOT DELETE' $(MAKEFILE) >/dev/null; \
