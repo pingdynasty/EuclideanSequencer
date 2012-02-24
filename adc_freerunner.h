@@ -4,8 +4,9 @@
 #include <inttypes.h>
 
 #define ADC_CHANNELS 6
+#define ADC_OVERSAMPLING 4
 
-extern uint16_t adc_values[ADC_CHANNELS];
+extern uint16_t volatile adc_values[ADC_CHANNELS];
 
 void setup_adc();
 
