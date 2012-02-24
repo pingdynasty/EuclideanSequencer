@@ -7,7 +7,7 @@ AVRDUDE_PROGRAMMER = stk500v1
 MCU = atmega168
 F_CPU = 16000000
 
-CXXSRC = EuclideanSequencer.cpp bjorklund.cpp main.cpp
+CXXSRC = EuclideanSequencer.cpp bjorklund.cpp adc_freerunner.cpp main.cpp
 SRC = serial.c
 
 ############################################################################

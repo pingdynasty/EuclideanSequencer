@@ -4,7 +4,7 @@ void setup();
 void loop();
 
 int main(void){
-  init();
+//   init();
   setup();
   for (;;)
     loop();
