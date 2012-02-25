@@ -2,7 +2,7 @@
 
 uint32_t Bjorklund::compute(int slots, int pulses){
   bits = 0;
-  pos = slots;
+  pos = 0;
   /* Figure 11 */
   int divisor = slots - pulses;
   remainder[0] = pulses; 
@@ -27,10 +27,10 @@ uint32_t Bjorklund::compute(int slots, int pulses){
 
 void Bjorklund::build(int level){
   if(level == -1){
-    --pos;
-//     bits &= ~(1<<--pos);
+//     pos++;
+    bits &= ~(1<<pos++);
   }else if(level == -2){
-    bits |= 1<<--pos;
+    bits |= 1<<pos++;
   }else{ 
     for(int i=0; i < count[level]; i++)
       build(level-1); 

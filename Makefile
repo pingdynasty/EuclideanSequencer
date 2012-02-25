@@ -1,20 +1,24 @@
 TARGET = EuclideanSequencer
+# INSTALL_DIR = /Users/mars/arduino/arduino-0013
 INSTALL_DIR = /Applications/Arduino.app/Contents/Resources/Java/
 PORT = /dev/tty.usb*
-UPLOAD_RATE = 57600
 AVRDUDE_PROGRAMMER = stk500v1
-# MCU = atmega328p
-MCU = atmega168
 F_CPU = 16000000
+# MCU = atmega328p
+# UPLOAD_RATE = 57600
+MCU = atmega168
+UPLOAD_RATE = 19200
+
+ARDUINO = $(INSTALL_DIR)/hardware/cores/arduino
 
 CXXSRC = EuclideanSequencer.cpp bjorklund.cpp adc_freerunner.cpp main.cpp
-SRC = serial.c
+SRC = wiring_serial.c
 
 ############################################################################
 
-ARDUINO = $(INSTALL_DIR)/hardware/cores/arduino
 AVR_TOOLS_PATH = $(INSTALL_DIR)/hardware/tools/avr/bin
 FORMAT = ihex
+
 
 # Name of this Makefile (used for "make depend").
 MAKEFILE = Makefile
