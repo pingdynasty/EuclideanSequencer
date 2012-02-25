@@ -25,13 +25,13 @@
  */
 class Bjorklund {
 public:
-  uint32_t compute(int slots, int pulses);
+  uint32_t compute(int8_t slots, int8_t pulses);
 
 private:
   uint32_t bits;
   uint8_t pos;
-  int remainder[BJORKLUND_ARRAY_SIZE];
-  int count[BJORKLUND_ARRAY_SIZE];
+  int8_t remainder[BJORKLUND_ARRAY_SIZE];
+  int8_t count[BJORKLUND_ARRAY_SIZE];
 
-  void build(int level);
+  void build(int8_t level);
 };

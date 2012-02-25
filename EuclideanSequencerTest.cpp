@@ -2,20 +2,20 @@
    g++ bjorklund.cpp EuclideanSequencerTest.cpp -o test
 */
 #include "bjorklund.h"
+#include <inttypes.h>
 #include <iostream>
 
-void dump(uint32_t bits, int length){
-  for(int i=0; i<length; ++i)
-    std::cout << ((bits & (1<<i)) ? " x" : " .");
+void dump(uint32_t bits, uint8_t length){
+  for(uint8_t i=0; i<length; ++i)
+    std::cout << ((bits & (1<<i)) ? 'x' : '.');
   std::cout << std::endl;
 }
 
-void test(int fills, int steps){
+void test(int8_t fills, int8_t steps){
   Bjorklund algo;
   uint32_t bits = algo.compute(steps, fills);
+  std::cout << "E(" << (int)fills << ", " << (int)steps << ")\t";
   dump(bits, steps);
-  std::cout << std::endl;
-  std::cout << "E(" << fills << ", " << steps << ")" << std::endl;
 //   for(int i=0; i<5; ++i){
 //     seq.calculate(fills, steps);
 //     seq.rol(i);

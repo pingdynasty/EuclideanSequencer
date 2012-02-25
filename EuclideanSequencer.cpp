@@ -12,18 +12,26 @@
 // #include "WProgram.h"
 // void beginSerial(long baud);
 
+/*
+  take measurements:
+  - BassStation output trigger level
+  - doepfer square wave levels
+  - firmware ms per loop cycle
+  - ms from clock rising to output rising
+  - ms from clock falling to output falling
+*/
 class Sequence {
 public:
   Sequence() : pos(0), offset(0) {}
   void calculate(int fills){
     Bjorklund algo;
     bits = algo.compute(length, fills);
-    printInteger(fills);
-    printString(", ");
-    printInteger(length);
-    printString(" ->\t");
+    offset = 0;
+  }
+  // debug
+  void print(){
     for(int i=0; i<length; ++i)
-      serialWrite((bits & i) ? '1' : '0');
+      serialWrite((bits & (1<<i)) ? 'x' : '.');
     printNewline();
   }
   /* Rotate Left */
@@ -52,51 +60,40 @@ class GateSequencer : public Sequence {
 public:
   GateSequencer(uint8_t p1, uint8_t p2, uint8_t p3):
     output(p1), trigger(p2), alternate(p3){
-//     SEQUENCER_TRIGGER_SWITCH_DDR &= ~trigger;
-//     SEQUENCER_TRIGGER_SWITCH_PORT |= trigger;
+//     SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(trigger);
+//     SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(trigger);
 //     SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(alternate);
 //     SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(alternate);
 //     SEQUENCER_OUTPUT_DDR |= output;
     off();
   }
   void rise(){
-    // debug
-    printString("rise ");
-    if(isTriggering())
-      printString("triggering ");
-    if(isAlternating())
-      printString("alternating ");
-    if(SEQUENCER_ALTERNATE_SWITCH_PORT & _BV(alternate))
-      printString("alt ");
-    printNewline();
-    //
     if(Sequence::next()){
-//       if(isTriggering())
+      if(isTriggering())
 	on();
-//       else if(isAlternating())
-// 	toggle();
+      else if(isAlternating())
+	toggle();
     }
   }
   void fall(){
-//     if(!isAlternating())
-    printString("fall\n");
+    if(!isAlternating())
 //     if(isTriggering())
       off();
   }
   inline void on(){
-    SEQUENCER_OUTPUT_PORT |= output;
+    SEQUENCER_OUTPUT_PORT |= _BV(output);
   }
   inline void off(){
-    SEQUENCER_OUTPUT_PORT &= ~output;
+    SEQUENCER_OUTPUT_PORT &= ~_BV(output);
   }
   inline void toggle(){
-    SEQUENCER_OUTPUT_PORT ^= output;
+    SEQUENCER_OUTPUT_PORT ^= _BV(output);
   }
   inline bool isTriggering(){
-    return !(SEQUENCER_TRIGGER_SWITCH_PORT & trigger);
+    return !(SEQUENCER_TRIGGER_SWITCH_PINS & _BV(trigger));
   }
   inline bool isAlternating(){
-    return !(SEQUENCER_ALTERNATE_SWITCH_PORT & _BV(alternate));
+    return !(SEQUENCER_ALTERNATE_SWITCH_PINS & _BV(alternate));
   }
   inline bool isDisabled(){
     return !(isAlternating() || isTriggering());
@@ -136,7 +133,19 @@ public:
   Sequence& seq;
   FillController(Sequence& s) : seq(s) {}
   virtual void hasChanged(int8_t val){
+    int offset = seq.offset;
     seq.calculate(val+1);
+    if(offset)
+      seq.rol(offset);
+    // debug
+    printString("E(");
+    printInteger(val+1);
+    printString(", ");
+    printInteger(seq.length);
+    printString(", ");
+    printInteger(seq.offset);
+    printString(") ->\t");
+    seq.print();
   }
 };
 
@@ -152,8 +161,10 @@ public:
       seq.rol(val-seq.offset);
     else if(val < seq.offset)
       seq.ror(seq.offset-val);
-
+    // debug
     printInteger(val);
+    printString(": ");
+    seq.print();
     printNewline();
   }
 };
@@ -165,17 +176,18 @@ StepController stepB(seqB, fillB);
 RotateController rotateA(seqA);
 RotateController rotateB(seqB);
 
-bool clock = true;
+bool clockIsHigh(){
+  return SEQUENCER_CLOCK_PINS & _BV(SEQUENCER_CLOCK_PIN);
+}
+
 SIGNAL(INT0_vect){
-  if(clock){
-//   if(SEQUENCER_CLOCK_PORT & SEQUENCER_CLOCK_PIN){
+  if(clockIsHigh()){
     seqA.rise();
     seqB.rise();
   }else{
     seqA.fall();
     seqB.fall();
   }
-  clock = !clock;
   // debug
   PORTB ^= _BV(PORTB4);
 }
@@ -191,22 +203,22 @@ void setup(){
 // define interrupt 1
 //       EICRA = (EICRA & ~((1 << ISC10) | (1 << ISC11))) | (mode << ISC10);
 //       EIMSK |= (1 << INT1);
-  SEQUENCER_CLOCK_DDR &= ~SEQUENCER_CLOCK_PIN;
-  SEQUENCER_CLOCK_PORT |= SEQUENCER_CLOCK_PIN; // enable pull-up resistor
-
-  SEQUENCER_TRIGGER_SWITCH_DDR &= ~SEQUENCER_TRIGGER_SWITCH_PIN_A;
-  SEQUENCER_TRIGGER_SWITCH_PORT |= SEQUENCER_TRIGGER_SWITCH_PIN_A;
-  SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(SEQUENCER_ALTERNATE_SWITCH_PIN_A);
-  SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(SEQUENCER_ALTERNATE_SWITCH_PIN_A);
-  SEQUENCER_OUTPUT_DDR |= SEQUENCER_OUTPUT_PIN_A;
-
-  SEQUENCER_TRIGGER_SWITCH_DDR &= ~SEQUENCER_TRIGGER_SWITCH_PIN_B;
-  SEQUENCER_TRIGGER_SWITCH_PORT |= SEQUENCER_TRIGGER_SWITCH_PIN_B;
-  SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(SEQUENCER_ALTERNATE_SWITCH_PIN_B);
-  SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(SEQUENCER_ALTERNATE_SWITCH_PIN_B);
-  SEQUENCER_OUTPUT_DDR |= SEQUENCER_OUTPUT_PIN_B;
+  SEQUENCER_CLOCK_DDR &= ~_BV(SEQUENCER_CLOCK_PIN);
+  SEQUENCER_CLOCK_PORT |= _BV(SEQUENCER_CLOCK_PIN); // enable pull-up resistor
 
   setup_adc();
+
+  SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(SEQUENCER_TRIGGER_SWITCH_PIN_A);
+  SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(SEQUENCER_TRIGGER_SWITCH_PIN_A);
+  SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(SEQUENCER_ALTERNATE_SWITCH_PIN_A);
+  SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(SEQUENCER_ALTERNATE_SWITCH_PIN_A);
+  SEQUENCER_OUTPUT_DDR |= _BV(SEQUENCER_OUTPUT_PIN_A);
+
+  SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(SEQUENCER_TRIGGER_SWITCH_PIN_B);
+  SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(SEQUENCER_TRIGGER_SWITCH_PIN_B);
+  SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(SEQUENCER_ALTERNATE_SWITCH_PIN_B);
+  SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(SEQUENCER_ALTERNATE_SWITCH_PIN_B);
+  SEQUENCER_OUTPUT_DDR |= _BV(SEQUENCER_OUTPUT_PIN_B);
 
   sei();
 
@@ -236,27 +248,18 @@ void loop(){
 //   if(seqB.isDisabled())
 //     seqB.off();
 
+  if(serialAvailable() > 0){
+    serialRead();
+    printString("rise ");
+    if(seqA.isTriggering())
+      printString("triggering ");
+    if(seqA.isAlternating())
+      printString("alternating ");
+    if(clockIsHigh())
+      printString("clocked ");
+    printNewline();
+  }
+
   // debug
   PORTB ^= _BV(PORTB5);
-
-//   printInteger(getAnalogValue(SEQUENCER_STEP_A_CONTROL));
-//   printString(",\t\t");
-//   printInteger(getAnalogValue(SEQUENCER_FILL_A_CONTROL));
-//   printString(",\t\t");
-//   printInteger(getAnalogValue(SEQUENCER_ROTATE_A_CONTROL));
-//   printNewline();
-
-//   printInteger(stepA.value);
-//   printString(",\t\t");
-//   printInteger(fillA.value);
-//   printString(",\t\t");
-//   printInteger(rotateA.value);
-//   printNewline();
-
-//   if(!(SEQUENCER_CLOCK_PORT & SEQUENCER_CLOCK_PIN))
-//     printString("clk\n");
-//   if(!clock)
-//     printString("clk\n");
-//   serialWrite((SEQUENCER_CLOCK_PORT & SEQUENCER_CLOCK_PIN) ? '1' : '0');
-//   serialWrite('\n');
 }
