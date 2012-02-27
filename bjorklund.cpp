@@ -28,9 +28,9 @@ uint32_t Bjorklund::compute(int8_t slots, int8_t pulses){
 void Bjorklund::build(int8_t level){
   if(level == -1){
 //     pos++;
-    bits &= ~(1<<pos++);
+    bits &= ~(1UL<<pos++);
   }else if(level == -2){
-    bits |= 1<<pos++;
+    bits |= 1UL<<pos++;
   }else{ 
     for(int8_t i=0; i < count[level]; i++)
       build(level-1); 
