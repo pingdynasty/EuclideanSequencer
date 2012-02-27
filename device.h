@@ -27,3 +27,8 @@
 #define SEQUENCER_ALTERNATE_SWITCH_PINS     PINB
 #define SEQUENCER_ALTERNATE_SWITCH_PIN_A    PORTB0         /* digital pin 8 */
 #define SEQUENCER_ALTERNATE_SWITCH_PIN_B    PORTB1         /* digital pin 9 */
+
+#define SEQUENCER_CHAINED_SWITCH_DDR        DDRB
+#define SEQUENCER_CHAINED_SWITCH_PORT       PORTB
+#define SEQUENCER_CHAINED_SWITCH_PINS       PINB
+#define SEQUENCER_CHAINED_SWITCH_PIN        PORTB2         /* digital pin 10 */

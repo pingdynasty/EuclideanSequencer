@@ -12,6 +12,14 @@
 // #include "WProgram.h"
 // void beginSerial(long baud);
 
+inline bool clockIsHigh(){
+  return SEQUENCER_CLOCK_PINS & _BV(SEQUENCER_CLOCK_PIN);
+}
+
+inline bool isChained(){
+  return !(SEQUENCER_CHAINED_SWITCH_PINS & _BV(SEQUENCER_CHAINED_SWITCH_PIN));
+}
+
 /*
   take measurements:
   - BassStation output trigger level
@@ -26,7 +34,9 @@ public:
   void calculate(int fills){
     Bjorklund algo;
     bits = algo.compute(length, fills);
+    int8_t offs = offset;
     offset = 0;
+    rol(offs);
   }
   // debug
   void print(){
@@ -60,31 +70,43 @@ class GateSequencer : public Sequence {
 public:
   GateSequencer(uint8_t p1, uint8_t p2, uint8_t p3):
     output(p1), trigger(p2), alternate(p3){
-//     SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(trigger);
-//     SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(trigger);
-//     SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(alternate);
-//     SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(alternate);
-//     SEQUENCER_OUTPUT_DDR |= output;
+    SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(trigger);
+    SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(trigger);
+    SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(alternate);
+    SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(alternate);
+    SEQUENCER_OUTPUT_DDR |= _BV(output);
     off();
   }
   void rise(){
-    if(Sequence::next()){
-      if(isTriggering())
-	on();
-      else if(isAlternating())
-	toggle();
+    if(isEnabled()){
+      if(Sequence::next()){
+	if(isAlternating())
+	  toggle();
+	else
+	  on();
+      }
+    }else{
+      off();
+      pos = 0;
     }
   }
   void fall(){
     if(!isAlternating())
-//     if(isTriggering())
       off();
+  }
+  void reset(){
+    pos = 0;
   }
   inline void on(){
     SEQUENCER_OUTPUT_PORT |= _BV(output);
   }
   inline void off(){
     SEQUENCER_OUTPUT_PORT &= ~_BV(output);
+  }
+  inline bool isOn(){
+    // todo: should this be:
+//     return SEQUENCER_OUTPUT_PINS & _BV(output);
+    return SEQUENCER_OUTPUT_PORT & _BV(output);
   }
   inline void toggle(){
     SEQUENCER_OUTPUT_PORT ^= _BV(output);
@@ -95,8 +117,8 @@ public:
   inline bool isAlternating(){
     return !(SEQUENCER_ALTERNATE_SWITCH_PINS & _BV(alternate));
   }
-  inline bool isDisabled(){
-    return !(isAlternating() || isTriggering());
+  inline bool isEnabled(){
+    return isAlternating() || isTriggering();
   }
 private:
   uint8_t output;
@@ -133,10 +155,7 @@ public:
   Sequence& seq;
   FillController(Sequence& s) : seq(s) {}
   virtual void hasChanged(int8_t val){
-    int offset = seq.offset;
     seq.calculate(val+1);
-    if(offset)
-      seq.rol(offset);
     // debug
     printString("E(");
     printInteger(val+1);
@@ -176,17 +195,32 @@ StepController stepB(seqB, fillB);
 RotateController rotateA(seqA);
 RotateController rotateB(seqB);
 
-bool clockIsHigh(){
-  return SEQUENCER_CLOCK_PINS & _BV(SEQUENCER_CLOCK_PIN);
-}
-
 SIGNAL(INT0_vect){
-  if(clockIsHigh()){
-    seqA.rise();
-    seqB.rise();
+  static uint8_t counter;
+  if(isChained()){
+    if(clockIsHigh())
+      seqA.rise();
+    else
+      seqA.fall();
+    if(counter++ < seqA.length){
+      if(seqA.isOn())
+	seqB.on();
+      else
+	seqB.off();
+    }else{
+      seqB.rise();
+      if(counter >= seqA.length+seqB.length)
+	counter = 0;
+    }
   }else{
-    seqA.fall();
-    seqB.fall();
+    if(clockIsHigh()){
+      seqA.rise();
+      seqB.rise();
+    }else{
+      seqA.fall();
+      seqB.fall();
+    }
+    counter = seqA.pos;
   }
   // debug
   PORTB ^= _BV(PORTB4);
@@ -208,17 +242,8 @@ void setup(){
 
   setup_adc();
 
-  SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(SEQUENCER_TRIGGER_SWITCH_PIN_A);
-  SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(SEQUENCER_TRIGGER_SWITCH_PIN_A);
-  SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(SEQUENCER_ALTERNATE_SWITCH_PIN_A);
-  SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(SEQUENCER_ALTERNATE_SWITCH_PIN_A);
-  SEQUENCER_OUTPUT_DDR |= _BV(SEQUENCER_OUTPUT_PIN_A);
-
-  SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(SEQUENCER_TRIGGER_SWITCH_PIN_B);
-  SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(SEQUENCER_TRIGGER_SWITCH_PIN_B);
-  SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(SEQUENCER_ALTERNATE_SWITCH_PIN_B);
-  SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(SEQUENCER_ALTERNATE_SWITCH_PIN_B);
-  SEQUENCER_OUTPUT_DDR |= _BV(SEQUENCER_OUTPUT_PIN_B);
+  SEQUENCER_CHAINED_SWITCH_DDR  &= ~_BV(SEQUENCER_CHAINED_SWITCH_PIN);
+  SEQUENCER_CHAINED_SWITCH_PORT |= _BV(SEQUENCER_CHAINED_SWITCH_PIN);
 
   sei();
 
