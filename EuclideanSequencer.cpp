@@ -197,20 +197,22 @@ RotateController rotateB(seqB);
 SIGNAL(INT0_vect){
   static uint8_t counter;
   if(isChained()){
-    if(clockIsHigh())
-      seqA.rise();
-    else
-      seqA.fall();
+    GateSequencer* primary = &seqB;
+    GateSequencer* secondary = &seqA;
     if(counter++ < seqA.length){
-      if(seqA.isOn())
-	seqB.on();
-      else
-	seqB.off();
-    }else{
-      seqB.rise();
-      if(counter >= seqA.length+seqB.length)
-	counter = 0;
+      primary = &seqA;
+      secondary = &seqB;
+    }else if(counter >= seqA.length+seqB.length){
+      counter = 0;
     }
+    if(clockIsHigh())
+      primary->rise();
+    else
+      primary->fall();
+    if(primary->isOn())
+      secondary->on();
+    else
+      secondary->off();
   }else{
     if(clockIsHigh()){
       seqA.rise();
