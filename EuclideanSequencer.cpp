@@ -78,16 +78,15 @@ public:
     off();
   }
   void rise(){
-    if(isEnabled()){
-      if(Sequence::next()){
-	if(isAlternating())
-	  toggle();
-	else
-	  on();
-      }
+    if(Sequence::next()){
+      if(isTriggering())
+	on();
+      else if(isAlternating())
+	toggle();
+      else
+	off();
     }else{
       off();
-      pos = 0;
     }
   }
   void fall(){
