@@ -276,13 +276,19 @@ void loop(){
 
   if(serialAvailable() > 0){
     serialRead();
-    printString("rise ");
+    printString("status: ");
     if(seqA.isTriggering())
-      printString("triggering ");
+      printString("triggering a ");
     if(seqA.isAlternating())
-      printString("alternating ");
+      printString("alternating a ");
+    if(seqB.isTriggering())
+      printString("triggering b ");
+    if(seqB.isAlternating())
+      printString("alternating b ");
     if(clockIsHigh())
       printString("clocked ");
+    if(isChained())
+      printString("chained ");
     printNewline();
   }
 
