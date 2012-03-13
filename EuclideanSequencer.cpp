@@ -13,11 +13,16 @@
 #endif // SERIAL_DEBUG
 
 inline bool clockIsHigh(){
-  return SEQUENCER_CLOCK_PINS & _BV(SEQUENCER_CLOCK_PIN);
+  return !(SEQUENCER_CLOCK_PINS & _BV(SEQUENCER_CLOCK_PIN));
+}
+
+inline bool resetIsHigh(){
+  return !(SEQUENCER_RESET_PINS & _BV(SEQUENCER_RESET_PIN));
 }
 
 inline bool isChained(){
-  return !(SEQUENCER_CHAINED_SWITCH_PINS & _BV(SEQUENCER_CHAINED_SWITCH_PIN));
+  return false;
+//   return !(SEQUENCER_CHAINED_SWITCH_PINS & _BV(SEQUENCER_CHAINED_SWITCH_PIN));
 }
 
 /*
@@ -100,11 +105,11 @@ public:
     pos = 0;
   }
   inline void on(){
-    SEQUENCER_OUTPUT_PORT |= _BV(output);
+    SEQUENCER_OUTPUT_PORT &= ~_BV(output);
     SEQUENCER_LEDS_PORT |= _BV(led);
   }
   inline void off(){
-    SEQUENCER_OUTPUT_PORT &= ~_BV(output);
+    SEQUENCER_OUTPUT_PORT |= _BV(output);
     SEQUENCER_LEDS_PORT &= ~_BV(led);
   }
   inline void toggle(){
@@ -115,10 +120,12 @@ public:
     return SEQUENCER_OUTPUT_PINS & _BV(output);
   }
   inline bool isTriggering(){
-    return !(SEQUENCER_TRIGGER_SWITCH_PINS & _BV(trigger));
+    return true;
+//     return !(SEQUENCER_TRIGGER_SWITCH_PINS & _BV(trigger));
   }
   inline bool isAlternating(){
-    return !(SEQUENCER_ALTERNATE_SWITCH_PINS & _BV(alternate));
+    return false;
+//     return !(SEQUENCER_ALTERNATE_SWITCH_PINS & _BV(alternate));
   }
   inline bool isEnabled(){
     return isAlternating() || isTriggering();
@@ -126,13 +133,17 @@ public:
 
 #ifdef SERIAL_DEBUG
   void dump(){
-    printInteger(pos);    
+    printInteger(pos);
+    printString(", ");
+    printInteger(length);
+    printString(", ");
+    printInteger(offset);
     if(isOn())
-      printString(" on");
+      printString(", on");
     if(isTriggering())
-      printString(" triggering");
+      printString(", triggering");
     if(isAlternating())
-      printString(" alternating");
+      printString(", alternating");
   }
 #endif
 
@@ -162,7 +173,7 @@ public:
     value = -1;
   }
   virtual void hasChanged(int8_t steps){
-    steps += 8; // range is 8-24
+    steps += 1; // range is 1-16
     seq.length = steps;
     fills.range = steps;
     fills.value = -1; // force change
@@ -172,19 +183,10 @@ public:
 class FillController : public DiscreteController {
 public:
   Sequence& seq;
-  FillController(Sequence& s) : seq(s) {}
+  FillController(Sequence& s) : seq(s) {
+  }
   virtual void hasChanged(int8_t val){
     seq.calculate(val+1);
-#ifdef SERIAL_DEBUG
-    printString("E(");
-    printInteger(val+1);
-    printString(", ");
-    printInteger(seq.length);
-    printString(", ");
-    printInteger(seq.offset);
-    printString(") ->\t");
-    seq.print();
-#endif
   }
 };
 
@@ -192,43 +194,33 @@ class RotateController : public DiscreteController {
 public:
   Sequence& seq;
   RotateController(Sequence& s) : seq(s) {
-    range = 8;
-    value = 1;
+    range = 9;
   }
   virtual void hasChanged(int8_t val){
+    val -= 4; // range is -4 to 4
     if(val > seq.offset)
       seq.rol(val-seq.offset);
     else if(val < seq.offset)
       seq.ror(seq.offset-val);
-#ifdef SERIAL_DEBUG
-    printInteger(val);
-    printString(": ");
-    seq.print();
-    printNewline();
-#endif
   }
 };
 
-FillController fillA(seqA);
-FillController fillB(seqB);
-StepController stepA(seqA, fillA);
-StepController stepB(seqB, fillB);
-RotateController rotateA(seqA);
-RotateController rotateB(seqB);
-
 volatile uint8_t counter;
 
+/* Reset interrupt */
 SIGNAL(INT0_vect){
-  seqA.pos = 0;
-  seqB.pos = 0;
+  seqA.reset();
+  seqB.reset();
   counter = 0;
+  seqA.off();
+  seqB.off();
+  // hold everything until reset is released
+  // todo: enable and test
+//   while(resetIsHigh());
 }
 
+/* Clock interrupt */
 SIGNAL(INT1_vect){
-  if(clockIsHigh())
-    SEQUENCER_LEDS_PORT |= _BV(SEQUENCER_LED_C_PIN);
-  else
-    SEQUENCER_LEDS_PORT &= ~_BV(SEQUENCER_LED_C_PIN);
   if(isChained()){
     GateSequencer* primary = &seqB;
     GateSequencer* secondary = &seqA;
@@ -256,6 +248,10 @@ SIGNAL(INT1_vect){
     }
     counter = seqA.pos;
   }
+  if(clockIsHigh())
+    SEQUENCER_LEDS_PORT |= _BV(SEQUENCER_LED_C_PIN);
+  else
+    SEQUENCER_LEDS_PORT &= ~_BV(SEQUENCER_LED_C_PIN);
   // debug
 //   PORTB ^= _BV(PORTB4);
 }
@@ -298,6 +294,13 @@ void setup(){
 //   PORTB |= _BV(PORTB5);
 }
 
+FillController fillA(seqA);
+StepController stepA(seqA, fillA);
+RotateController rotateA(seqA);
+FillController fillB(seqB);
+StepController stepB(seqB, fillB);
+RotateController rotateB(seqB);
+
 void loop(){
   stepA.update(getAnalogValue(SEQUENCER_STEP_A_CONTROL));
   fillA.update(getAnalogValue(SEQUENCER_FILL_A_CONTROL));
@@ -315,13 +318,18 @@ void loop(){
 #ifdef SERIAL_DEBUG
   if(serialAvailable() > 0){
     serialRead();
-    printString("status a [");
+    printString("a: [");
     seqA.dump();
-    printString("] status b [");
+    printString("] ");
+    seqA.print();
+    printString("b: [");
     seqB.dump();
-    printString("]");
+    printString("] ");
+    seqB.print();
     if(clockIsHigh())
-      printString(" clocked");
+      printString(" clock high");
+    if(resetIsHigh())
+      printString(" reset high");
     if(isChained())
       printString(" chained");
     printNewline();
