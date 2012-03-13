@@ -1,7 +1,7 @@
 #include "bjorklund.h"
 
 uint32_t Bjorklund::compute(int8_t slots, int8_t pulses){
-  bits = 0;
+  bits = 0UL;
   pos = 0;
   /* Figure 11 */
   int8_t divisor = slots - pulses;

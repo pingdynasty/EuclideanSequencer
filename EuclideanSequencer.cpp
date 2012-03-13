@@ -46,7 +46,7 @@ public:
 #ifdef SERIAL_DEBUG
   void print(){
     for(int i=0; i<length; ++i)
-      serialWrite((bits & (1<<i)) ? 'x' : '.');
+      serialWrite((bits & (1UL<<i)) ? 'x' : '.');
     printNewline();
   }
 #endif
@@ -117,7 +117,7 @@ public:
     SEQUENCER_LEDS_PORT ^= _BV(led);
   }
   inline bool isOn(){
-    return SEQUENCER_OUTPUT_PINS & _BV(output);
+    return !(SEQUENCER_OUTPUT_PINS & _BV(output));
   }
   inline bool isTriggering(){
     return true;
@@ -172,11 +172,11 @@ public:
     range = 16;
     value = -1;
   }
-  virtual void hasChanged(int8_t steps){
-    steps += 1; // range is 1-16
+  void hasChanged(int8_t steps){
+    steps += 1; // range is 1 to 16
     seq.length = steps;
     fills.range = steps;
-    fills.value = -1; // force change
+    fills.value = -1; // force fills.hasChanged() to be called
   }
 };
 
@@ -184,9 +184,11 @@ class FillController : public DiscreteController {
 public:
   Sequence& seq;
   FillController(Sequence& s) : seq(s) {
+    range = seq.length;
+    value = -1;
   }
-  virtual void hasChanged(int8_t val){
-    seq.calculate(val+1);
+  void hasChanged(int8_t val){
+    seq.calculate(val+1); // range is 1 to seq.length
   }
 };
 
@@ -196,7 +198,7 @@ public:
   RotateController(Sequence& s) : seq(s) {
     range = 9;
   }
-  virtual void hasChanged(int8_t val){
+  void hasChanged(int8_t val){
     val -= 4; // range is -4 to 4
     if(val > seq.offset)
       seq.rol(val-seq.offset);
