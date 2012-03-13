@@ -6,11 +6,11 @@
 #include "adc_freerunner.h"
 #include "DiscreteController.h"
 
-// debug
+#define SERIAL_DEBUG
+
+#ifdef SERIAL_DEBUG
 #include "serial.h"
-// #include "wiring.h"
-// #include "WProgram.h"
-// void beginSerial(long baud);
+#endif // SERIAL_DEBUG
 
 inline bool clockIsHigh(){
   return SEQUENCER_CLOCK_PINS & _BV(SEQUENCER_CLOCK_PIN);
@@ -38,12 +38,13 @@ public:
     offset = 0;
     rol(offs);
   }
-  // debug
+#ifdef SERIAL_DEBUG
   void print(){
     for(int i=0; i<length; ++i)
       serialWrite((bits & (1<<i)) ? 'x' : '.');
     printNewline();
   }
+#endif
   /* Rotate Left */
   void rol(uint8_t steps){
     bits = (bits << steps) | (bits >> (length-steps));
@@ -123,7 +124,7 @@ public:
     return isAlternating() || isTriggering();
   }
 
-  // debug
+#ifdef SERIAL_DEBUG
   void dump(){
     printInteger(pos);    
     if(isOn())
@@ -133,6 +134,8 @@ public:
     if(isAlternating())
       printString(" alternating");
   }
+#endif
+
 private:
   uint8_t output;
   uint8_t trigger;
@@ -172,7 +175,7 @@ public:
   FillController(Sequence& s) : seq(s) {}
   virtual void hasChanged(int8_t val){
     seq.calculate(val+1);
-    // debug
+#ifdef SERIAL_DEBUG
     printString("E(");
     printInteger(val+1);
     printString(", ");
@@ -181,6 +184,7 @@ public:
     printInteger(seq.offset);
     printString(") ->\t");
     seq.print();
+#endif
   }
 };
 
@@ -196,11 +200,12 @@ public:
       seq.rol(val-seq.offset);
     else if(val < seq.offset)
       seq.ror(seq.offset-val);
-    // debug
+#ifdef SERIAL_DEBUG
     printInteger(val);
     printString(": ");
     seq.print();
     printNewline();
+#endif
   }
 };
 
@@ -281,11 +286,11 @@ void setup(){
 
   sei();
 
-  // debug
+#ifdef SERIAL_DEBUG
   beginSerial(9600);
   printString("hello\n");
-//   serialWrite('h');
-//   serialWrite('\n');
+#endif
+  // debug
 //   DDRB |= _BV(PORTB4);
 //   PORTB |= _BV(PORTB4);
 //   PORTB &= ~_BV(PORTB4);
@@ -307,6 +312,7 @@ void loop(){
 //   if(seqB.isDisabled())
 //     seqB.off();
 
+#ifdef SERIAL_DEBUG
   if(serialAvailable() > 0){
     serialRead();
     printString("status a [");
@@ -320,6 +326,7 @@ void loop(){
       printString(" chained");
     printNewline();
   }
+#endif
 
   // debug
 //   PORTB ^= _BV(PORTB5);
