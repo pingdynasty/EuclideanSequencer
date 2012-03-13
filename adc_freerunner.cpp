@@ -28,7 +28,7 @@ ISR(ADC_vect) {
   static uint8_t counter;
   static uint16_t adc_buffer[ADC_CHANNELS];
   uint8_t curchan = ADMUX & 7;
-  adc_buffer[oldchan] += ADCL | ADCH << 8;
+  adc_buffer[oldchan] += ADCL | (ADCH << 8);
   oldchan = curchan;
   if(++curchan == ADC_CHANNELS){
     curchan = 0;
