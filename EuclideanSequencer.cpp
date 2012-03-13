@@ -68,13 +68,15 @@ public:
 
 class GateSequencer : public Sequence {
 public:
-  GateSequencer(uint8_t p1, uint8_t p2, uint8_t p3):
-    output(p1), trigger(p2), alternate(p3){
+  GateSequencer(uint8_t p1, uint8_t p2, uint8_t p3, uint8_t p4):
+    output(p1), trigger(p2), alternate(p3), led(p4){
     SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(trigger);
     SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(trigger);
     SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(alternate);
     SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(alternate);
     SEQUENCER_OUTPUT_DDR |= _BV(output);
+    SEQUENCER_LEDS_DDR |= _BV(led);
+    SEQUENCER_LEDS_PORT |= _BV(led);
     off();
   }
   void rise(){
@@ -98,17 +100,18 @@ public:
   }
   inline void on(){
     SEQUENCER_OUTPUT_PORT |= _BV(output);
+    SEQUENCER_LEDS_PORT |= _BV(led);
   }
   inline void off(){
     SEQUENCER_OUTPUT_PORT &= ~_BV(output);
-  }
-  inline bool isOn(){
-    // todo: should this be:
-//     return SEQUENCER_OUTPUT_PINS & _BV(output);
-    return SEQUENCER_OUTPUT_PORT & _BV(output);
+    SEQUENCER_LEDS_PORT &= ~_BV(led);
   }
   inline void toggle(){
     SEQUENCER_OUTPUT_PORT ^= _BV(output);
+    SEQUENCER_LEDS_PORT ^= _BV(led);
+  }
+  inline bool isOn(){
+    return SEQUENCER_OUTPUT_PINS & _BV(output);
   }
   inline bool isTriggering(){
     return !(SEQUENCER_TRIGGER_SWITCH_PINS & _BV(trigger));
@@ -119,19 +122,33 @@ public:
   inline bool isEnabled(){
     return isAlternating() || isTriggering();
   }
+
+  // debug
+  void dump(){
+    printInteger(pos);    
+    if(isOn())
+      printString(" on");
+    if(isTriggering())
+      printString(" triggering");
+    if(isAlternating())
+      printString(" alternating");
+  }
 private:
   uint8_t output;
   uint8_t trigger;
   uint8_t alternate;
+  uint8_t led;
 };
 
 GateSequencer seqA(SEQUENCER_OUTPUT_PIN_A, 
 		   SEQUENCER_TRIGGER_SWITCH_PIN_A,
-		   SEQUENCER_ALTERNATE_SWITCH_PIN_A);
+		   SEQUENCER_ALTERNATE_SWITCH_PIN_A,
+		   SEQUENCER_LED_A_PIN);
 
 GateSequencer seqB(SEQUENCER_OUTPUT_PIN_B, 
 		   SEQUENCER_TRIGGER_SWITCH_PIN_B,
-		   SEQUENCER_ALTERNATE_SWITCH_PIN_B);
+		   SEQUENCER_ALTERNATE_SWITCH_PIN_B,
+		   SEQUENCER_LED_B_PIN);
 
 class StepController : public DiscreteController {
 public:
@@ -194,8 +211,19 @@ StepController stepB(seqB, fillB);
 RotateController rotateA(seqA);
 RotateController rotateB(seqB);
 
+volatile uint8_t counter;
+
 SIGNAL(INT0_vect){
-  static uint8_t counter;
+  seqA.pos = 0;
+  seqB.pos = 0;
+  counter = 0;
+}
+
+SIGNAL(INT1_vect){
+  if(clockIsHigh())
+    SEQUENCER_LEDS_PORT |= _BV(SEQUENCER_LED_C_PIN);
+  else
+    SEQUENCER_LEDS_PORT &= ~_BV(SEQUENCER_LED_C_PIN);
   if(isChained()){
     GateSequencer* primary = &seqB;
     GateSequencer* secondary = &seqA;
@@ -224,27 +252,32 @@ SIGNAL(INT0_vect){
     counter = seqA.pos;
   }
   // debug
-  PORTB ^= _BV(PORTB4);
+//   PORTB ^= _BV(PORTB4);
 }
 
 void setup(){
   cli();
-  // define interrupt 0
-  EICRA = 1 << ISC00; // trigger int0 on any logical change.
+  // define interrupt 0 and 1
+  EICRA = (1<<ISC10) | (1<<ISC01);
+  // trigger int0 on the falling edge.
+  // trigger int1 on any logical change.
   // pulses that last longer than one clock period will generate an interrupt.
-  EIMSK |= (1 << INT0);
-//   EICRA = (EICRA & ~((1 << ISC00) | (1 << ISC01))) | (mode << ISC00);
-//   EIMSK |= (1 << INT0);
-// define interrupt 1
-//       EICRA = (EICRA & ~((1 << ISC10) | (1 << ISC11))) | (mode << ISC10);
-//       EIMSK |= (1 << INT1);
+  EIMSK =  (1<<INT1) | (1<<INT0);
+  // enables INT0 and INT1
   SEQUENCER_CLOCK_DDR &= ~_BV(SEQUENCER_CLOCK_PIN);
   SEQUENCER_CLOCK_PORT |= _BV(SEQUENCER_CLOCK_PIN); // enable pull-up resistor
+
+  SEQUENCER_RESET_DDR &= ~_BV(SEQUENCER_RESET_PIN);
+  SEQUENCER_RESET_PORT |= _BV(SEQUENCER_RESET_PIN); // enable pull-up resistor
 
   setup_adc();
 
   SEQUENCER_CHAINED_SWITCH_DDR  &= ~_BV(SEQUENCER_CHAINED_SWITCH_PIN);
   SEQUENCER_CHAINED_SWITCH_PORT |= _BV(SEQUENCER_CHAINED_SWITCH_PIN);
+
+//   SEQUENCER_LEDS_DDR |= _BV(SEQUENCER_LED_A_PIN);
+//   SEQUENCER_LEDS_DDR |= _BV(SEQUENCER_LED_B_PIN);
+  SEQUENCER_LEDS_DDR |= _BV(SEQUENCER_LED_C_PIN);
 
   sei();
 
@@ -253,10 +286,10 @@ void setup(){
   printString("hello\n");
 //   serialWrite('h');
 //   serialWrite('\n');
-  DDRB |= _BV(PORTB4);
-  PORTB |= _BV(PORTB4);
-  PORTB &= ~_BV(PORTB4);
-  DDRB |= _BV(PORTB5);
+//   DDRB |= _BV(PORTB4);
+//   PORTB |= _BV(PORTB4);
+//   PORTB &= ~_BV(PORTB4);
+//   DDRB |= _BV(PORTB5);
 //   PORTB |= _BV(PORTB5);
 }
 
@@ -265,9 +298,9 @@ void loop(){
   fillA.update(getAnalogValue(SEQUENCER_FILL_A_CONTROL));
   rotateA.update(getAnalogValue(SEQUENCER_ROTATE_A_CONTROL));
 
-//   stepB.update(getAnalogValue(SEQUENCER_STEP_B_CONTROL));
-//   fillB.update(getAnalogValue(SEQUENCER_FILL_B_CONTROL));
-//   rotateB.update(getAnalogValue(SEQUENCER_ROTATE_B_CONTROL));
+  stepB.update(getAnalogValue(SEQUENCER_STEP_B_CONTROL));
+  fillB.update(getAnalogValue(SEQUENCER_FILL_B_CONTROL));
+  rotateB.update(getAnalogValue(SEQUENCER_ROTATE_B_CONTROL));
 
 //   if(seqA.isDisabled())
 //     seqA.off();
@@ -276,22 +309,18 @@ void loop(){
 
   if(serialAvailable() > 0){
     serialRead();
-    printString("status: ");
-    if(seqA.isTriggering())
-      printString("triggering a ");
-    if(seqA.isAlternating())
-      printString("alternating a ");
-    if(seqB.isTriggering())
-      printString("triggering b ");
-    if(seqB.isAlternating())
-      printString("alternating b ");
+    printString("status a [");
+    seqA.dump();
+    printString("] status b [");
+    seqB.dump();
+    printString("]");
     if(clockIsHigh())
-      printString("clocked ");
+      printString(" clocked");
     if(isChained())
-      printString("chained ");
+      printString(" chained");
     printNewline();
   }
 
   // debug
-  PORTB ^= _BV(PORTB5);
+//   PORTB ^= _BV(PORTB5);
 }
