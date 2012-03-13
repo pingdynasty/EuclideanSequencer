@@ -1,7 +1,7 @@
 #ifndef _DISCRETE_CONTROLLER_H_
 #define _DISCRETE_CONTROLLER_H_
 
-#define ADC_VALUE_RANGE 4096
+#include "adc_freerunner.h"
 
 class DiscreteController {
 public:
