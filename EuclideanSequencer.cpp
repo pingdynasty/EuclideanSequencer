@@ -63,7 +63,7 @@ public:
   bool next(){
     if(pos >= length)
       pos = 0;
-    return bits & pos++;
+    return bits & (1UL << pos++);
   }
 // private:
   uint32_t bits;
@@ -196,10 +196,10 @@ class RotateController : public DiscreteController {
 public:
   Sequence& seq;
   RotateController(Sequence& s) : seq(s) {
-    range = 9;
+    range = 17;
   }
   void hasChanged(int8_t val){
-    val -= 4; // range is -4 to 4
+    val -= 8; // range is -8 to 8
     if(val > seq.offset)
       seq.rol(val-seq.offset);
     else if(val < seq.offset)
