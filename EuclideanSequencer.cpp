@@ -21,8 +21,7 @@ inline bool resetIsHigh(){
 }
 
 inline bool isChained(){
-  return false;
-//   return !(SEQUENCER_CHAINED_SWITCH_PINS & _BV(SEQUENCER_CHAINED_SWITCH_PIN));
+  return !(SEQUENCER_CHAINED_SWITCH_PINS & _BV(SEQUENCER_CHAINED_SWITCH_PIN));
 }
 
 /*
@@ -37,7 +36,7 @@ class Sequence {
 public:
   Sequence() : pos(0), offset(0) {}
   void calculate(int fills){
-    Bjorklund algo;
+    Bjorklund<uint16_t, 10> algo;
     bits = algo.compute(length, fills);
     int8_t offs = offset;
     offset = 0;
@@ -120,12 +119,10 @@ public:
     return !(SEQUENCER_OUTPUT_PINS & _BV(output));
   }
   inline bool isTriggering(){
-    return true;
-//     return !(SEQUENCER_TRIGGER_SWITCH_PINS & _BV(trigger));
+    return !(SEQUENCER_TRIGGER_SWITCH_PINS & _BV(trigger));
   }
   inline bool isAlternating(){
-    return false;
-//     return !(SEQUENCER_ALTERNATE_SWITCH_PINS & _BV(alternate));
+    return !(SEQUENCER_ALTERNATE_SWITCH_PINS & _BV(alternate));
   }
   inline bool isEnabled(){
     return isAlternating() || isTriggering();
@@ -169,11 +166,11 @@ public:
   Sequence& seq;
   DiscreteController& fills;
   StepController(Sequence& s, DiscreteController& f) : seq(s), fills(f) {
-    range = 16;
+    range = 15;
     value = -1;
   }
   void hasChanged(int8_t steps){
-    steps += 1; // range is 1 to 16
+    steps += 2; // range is 2 to 16
     seq.length = steps;
     fills.range = steps;
     fills.value = -1; // force fills.hasChanged() to be called
