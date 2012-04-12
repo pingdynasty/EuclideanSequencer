@@ -1,6 +1,7 @@
 #include "bjorklund.h"
 
-uint32_t Bjorklund::compute(int8_t slots, int8_t pulses){
+template<typename T, int BJORKLUND_ARRAY_SIZE>
+T Bjorklund<T, BJORKLUND_ARRAY_SIZE>::compute(int8_t slots, int8_t pulses){
   bits = 0UL;
   pos = 0;
   /* Figure 11 */
@@ -25,7 +26,8 @@ uint32_t Bjorklund::compute(int8_t slots, int8_t pulses){
   return bits;
 }
 
-void Bjorklund::build(int8_t level){
+template<typename T, int BJORKLUND_ARRAY_SIZE>
+void Bjorklund<T, BJORKLUND_ARRAY_SIZE>::build(int8_t level){
   if(level == -1){
 //     pos++;
     bits &= ~(1UL<<pos++);
