@@ -111,14 +111,16 @@ public:
     off();
   }
   void update(){
+    GateSequencerMode newmode;
     if(isChained())
-      mode = (GateSequencerMode)((mode | _BV(CHAINED_BIT)) & (_BV(CHAINED_BIT)|_BV(LEADING_BIT)));
+      newmode = (GateSequencerMode)((mode | _BV(CHAINED_BIT)) & (_BV(CHAINED_BIT)|_BV(LEADING_BIT)));
     else
-      mode = DISABLED;
+      newmode = DISABLED;
     if(isTriggering())
-      mode = (GateSequencerMode)(mode | _BV(TRIGGERING_BIT));
+      newmode = (GateSequencerMode)(newmode | _BV(TRIGGERING_BIT));
     else if(isAlternating())
-      mode = (GateSequencerMode)(mode | _BV(ALTERNATING_BIT));
+      newmode = (GateSequencerMode)(newmode | _BV(ALTERNATING_BIT));
+    mode = newmode;
   }
   void push(){
     if(isOn())
