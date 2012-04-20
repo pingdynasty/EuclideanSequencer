@@ -12,6 +12,13 @@
 #include "serial.h"
 #endif // SERIAL_DEBUG
 
+/* effective steps range is 1 to 16 */
+#define SEQUENCER_STEPS_RANGE       16
+#define SEQUENCER_STEPS_MINIMUM     1
+/* effective rotation range is -7 to 8 */
+#define SEQUENCER_ROTATION_RANGE    16
+#define SEQUENCER_ROTATION_MINIMUM  -7
+
 inline bool clockIsHigh(){
   return !(SEQUENCER_CLOCK_PINS & _BV(SEQUENCER_CLOCK_PIN));
 }
@@ -104,8 +111,6 @@ public:
     off();
   }
   void update(){
-//     mode = (GateSequencerMode)(isChained() << CHAINED_BIT);
-//     mode = (GateSequencerMode)(mode & _BV(LEADING_BIT));
     if(isChained())
       mode = (GateSequencerMode)((mode | _BV(CHAINED_BIT)) & (_BV(CHAINED_BIT)|_BV(LEADING_BIT)));
     else
@@ -122,7 +127,7 @@ public:
       next->off();
   }
   bool isFollowing(){
-    return mode & _BV(LEADING_BIT);
+    return !(mode & _BV(LEADING_BIT));
   }
   void follow(){
     mode = (GateSequencerMode)(mode & ~_BV(LEADING_BIT));
@@ -167,25 +172,28 @@ public:
     case DISABLED_FOLLOWING:
     case TRIGGERING_FOLLOWING:
     case ALTERNATING_FOLLOWING:
+      break;
     default:
+      off();
       break;
     }
   }
 
   void fall(){
     switch(mode){
-    case TRIGGERING:
-      off();
-      break;
     case TRIGGERING_LEADING:
       off();
       next->off();
       break;
-//     case ALTERNATING:
-//     case ALTERNATING_LEADING:
-//     case TRIGGERING_FOLLOWING:
-//     case ALTERNATING_FOLLOWING:
-//     default:
+    case ALTERNATING:
+    case ALTERNATING_LEADING:
+    case TRIGGERING_FOLLOWING:
+    case ALTERNATING_FOLLOWING:
+      break;
+    case TRIGGERING:
+    default:
+      off();
+      break;
     }
   }
   void reset(){
@@ -283,11 +291,11 @@ public:
   Sequence& seq;
   DiscreteController& fills;
   StepController(Sequence& s, DiscreteController& f) : seq(s), fills(f) {
-    range = 15;
+    range = SEQUENCER_STEPS_RANGE;
     value = -1;
   }
   void hasChanged(int8_t steps){
-    steps += 2; // range is 2 to 16
+    steps += SEQUENCER_STEPS_MINIMUM;
     seq.length = steps;
     fills.range = steps;
     fills.value = -1; // force fills.hasChanged() to be called
@@ -310,10 +318,10 @@ class RotateController : public DiscreteController {
 public:
   Sequence& seq;
   RotateController(Sequence& s) : seq(s) {
-    range = 17;
+    range = SEQUENCER_ROTATION_RANGE;
   }
   void hasChanged(int8_t val){
-    val -= 8; // range is -8 to 8
+    val -= SEQUENCER_ROTATION_MINIMUM;
     if(val > seq.offset)
       seq.rol(val-seq.offset);
     else if(val < seq.offset)
@@ -327,7 +335,6 @@ SIGNAL(INT0_vect){
   seqB.reset();
   seqA.off();
   seqB.off();
-//   seqB.follow();
   // hold everything until reset is released
   // todo: enable and test
 //   while(resetIsHigh());
@@ -353,8 +360,8 @@ SIGNAL(INT1_vect){
 void setup(){
   cli();
   // define interrupt 0 and 1
-  EICRA = (1<<ISC10) | (1<<ISC01);
-  // trigger int0 on the falling edge.
+  EICRA = (1<<ISC10) | (1<<ISC01) | (1<<ISC00);
+  // trigger int0 on the rising edge.
   // trigger int1 on any logical change.
   // pulses that last longer than one clock period will generate an interrupt.
   EIMSK =  (1<<INT1) | (1<<INT0);
