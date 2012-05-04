@@ -6,7 +6,7 @@
 #include "adc_freerunner.h"
 #include "DiscreteController.h"
 
-#define SERIAL_DEBUG
+// #define SERIAL_DEBUG
 
 #ifdef SERIAL_DEBUG
 #include "serial.h"
@@ -44,10 +44,10 @@ public:
   Sequence() : pos(0), offset(0) {}
   void calculate(int fills){
     Bjorklund<uint16_t, 10> algo;
-    bits = algo.compute(length, fills);
-    int8_t offs = offset;
-    offset = 0;
-    rol(offs);
+    uint16_t newbits;
+    newbits = algo.compute(length, fills);
+    newbits = (newbits << offset) | (newbits >> (length-offset));
+    bits = newbits;
   }
 #ifdef SERIAL_DEBUG
   void print(){
@@ -180,7 +180,6 @@ public:
       break;
     }
   }
-
   void fall(){
     switch(mode){
     case TRIGGERING_LEADING:
