@@ -31,14 +31,6 @@ inline bool isChained(){
   return !(SEQUENCER_CHAINED_SWITCH_PINS & _BV(SEQUENCER_CHAINED_SWITCH_PIN));
 }
 
-/*
-  take measurements:
-  - BassStation output trigger level
-  - doepfer square wave levels
-  - firmware ms per loop cycle
-  - ms from clock rising to output rising
-  - ms from clock falling to output falling
-*/
 class Sequence {
 public:
   Sequence() : pos(0), offset(0) {}
@@ -46,7 +38,11 @@ public:
     Bjorklund<uint16_t, 10> algo;
     uint16_t newbits;
     newbits = algo.compute(length, fills);
-    newbits = (newbits << offset) | (newbits >> (length-offset));
+    // rotate 
+    if(offset > 0)
+      newbits = (newbits >> offset) | (newbits << (length-offset));
+    else
+      newbits = (newbits << -offset) | (newbits >> (length+offset));
     bits = newbits;
   }
 #ifdef SERIAL_DEBUG
@@ -337,8 +333,7 @@ SIGNAL(INT0_vect){
   seqA.off();
   seqB.off();
   // hold everything until reset is released
-  // todo: enable and test
-//   while(resetIsHigh());
+  while(resetIsHigh());
 }
 
 /* Clock interrupt */
@@ -346,14 +341,12 @@ SIGNAL(INT1_vect){
   if(clockIsHigh()){
     seqA.rise();
     seqB.rise();
+    SEQUENCER_LEDS_PORT |= _BV(SEQUENCER_LED_C_PIN);
   }else{
     seqA.fall();
     seqB.fall();
-  }
-  if(clockIsHigh())
-    SEQUENCER_LEDS_PORT |= _BV(SEQUENCER_LED_C_PIN);
-  else
     SEQUENCER_LEDS_PORT &= ~_BV(SEQUENCER_LED_C_PIN);
+  }
   // debug
 //   PORTB ^= _BV(PORTB4);
 }
@@ -362,7 +355,9 @@ void setup(){
   cli();
   // define interrupt 0 and 1
   EICRA = (1<<ISC10) | (1<<ISC01) | (1<<ISC00);
-  // trigger int0 on the rising edge.
+//   EICRA = (1<<ISC10) | (1<<ISC01) | (1<<ISC00); // trigger int0 on rising edge
+  EICRA = (1<<ISC10) | (1<<ISC01);
+  // trigger int0 on the falling edge, since input is inverted
   // trigger int1 on any logical change.
   // pulses that last longer than one clock period will generate an interrupt.
   EIMSK =  (1<<INT1) | (1<<INT0);
