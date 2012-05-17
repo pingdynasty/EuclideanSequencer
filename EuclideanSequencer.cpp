@@ -354,7 +354,6 @@ SIGNAL(INT1_vect){
 void setup(){
   cli();
   // define interrupt 0 and 1
-  EICRA = (1<<ISC10) | (1<<ISC01) | (1<<ISC00);
 //   EICRA = (1<<ISC10) | (1<<ISC01) | (1<<ISC00); // trigger int0 on rising edge
   EICRA = (1<<ISC10) | (1<<ISC01);
   // trigger int0 on the falling edge, since input is inverted
