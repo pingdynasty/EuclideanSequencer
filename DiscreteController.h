@@ -15,7 +15,7 @@ public:
     else
       x = 0;
     int8_t v = (int8_t)(x/m);
-    if(value == v-1 && (x % m) < range/2)
+    if(value == v-1 && (x % m) < m/2)
       v = value; // suppress change: reading too close to previous value
     if(value != v){
       value = v;
