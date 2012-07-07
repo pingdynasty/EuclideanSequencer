@@ -195,6 +195,7 @@ public:
   }
   void reset(){
     pos = 0;
+    off();
   }
   inline void on(){
     SEQUENCER_OUTPUT_PORT &= ~_BV(output);
@@ -330,8 +331,6 @@ public:
 SIGNAL(INT0_vect){
   seqA.reset();
   seqB.reset();
-  seqA.off();
-  seqB.off();
   // hold everything until reset is released
   while(resetIsHigh());
 }
