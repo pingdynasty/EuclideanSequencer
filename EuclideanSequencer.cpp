@@ -31,12 +31,13 @@ inline bool isChained(){
   return !(SEQUENCER_CHAINED_SWITCH_PINS & _BV(SEQUENCER_CHAINED_SWITCH_PIN));
 }
 
+template<typename T>
 class Sequence {
 public:
   Sequence() : pos(0), offset(0) {}
   void calculate(int fills){
-    Bjorklund<uint16_t, 10> algo;
-    uint16_t newbits;
+    Bjorklund<T, 10> algo;
+    T newbits;
     newbits = algo.compute(length, fills);
     // rotate 
     if(offset > 0)
@@ -68,7 +69,7 @@ public:
     return bits & (1UL << pos++);
   }
 // private:
-  uint16_t bits;
+  T bits;
   uint8_t length;
   int8_t offset;
   volatile uint8_t pos;
@@ -91,10 +92,10 @@ enum GateSequencerMode {
   DISABLED_LEADING           = (_BV(CHAINED_BIT)|_BV(LEADING_BIT))
 };
 
-class GateSequencer : public Sequence {
+class GateSequencer : public Sequence<uint16_t> {
 public:
   GateSequencerMode mode;
-  GateSequencer* next;
+  GateSequencer* linked;
   GateSequencer(uint8_t p1, uint8_t p2, uint8_t p3, uint8_t p4):
     output(p1), trigger(p2), alternate(p3), led(p4){
     SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(trigger);
@@ -120,50 +121,50 @@ public:
   }
   void push(){
     if(isOn())
-      next->on();
+      linked->on();
     else
-      next->off();
+      linked->off();
   }
   bool isFollowing(){
     return !(mode & _BV(LEADING_BIT));
   }
   void follow(){
     mode = (GateSequencerMode)(mode & ~_BV(LEADING_BIT));
-    next->mode = (GateSequencerMode)(next->mode | _BV(LEADING_BIT));
+    linked->mode = (GateSequencerMode)(linked->mode | _BV(LEADING_BIT));
   }
   void rise(){
     switch(mode){
     case TRIGGERING:
-      if(Sequence::next())
+      if(next())
 	on();
       break;
     case ALTERNATING:
-      if(Sequence::next())
+      if(next())
 	toggle();
       break;
     case DISABLED:
-      Sequence::next();
+      next();
       off();
       break;
     case TRIGGERING_LEADING:
-      if(Sequence::next()){
+      if(next()){
 	on();
-	next->on();
+	linked->on();
       }
       if(pos >= length)
 	follow();
       break;
     case ALTERNATING_LEADING:
-      if(Sequence::next())
+      if(next())
 	toggle();
       push();
       if(pos >= length)
 	follow();
       break;
     case DISABLED_LEADING:
-      Sequence::next();
+      next();
       off();
-      next->off();
+      linked->off();
       if(pos >= length)
 	follow();
       break;
@@ -180,7 +181,7 @@ public:
     switch(mode){
     case TRIGGERING_LEADING:
       off();
-      next->off();
+      linked->off();
       break;
     case ALTERNATING:
     case ALTERNATING_LEADING:
@@ -286,9 +287,9 @@ GateSequencer seqB(SEQUENCER_OUTPUT_PIN_B,
 
 class StepController : public DiscreteController {
 public:
-  Sequence& seq;
+  GateSequencer& seq;
   DiscreteController& fills;
-  StepController(Sequence& s, DiscreteController& f) : seq(s), fills(f) {
+  StepController(GateSequencer& s, DiscreteController& f) : seq(s), fills(f) {
     range = SEQUENCER_STEPS_RANGE;
     value = -1;
   }
@@ -302,8 +303,8 @@ public:
 
 class FillController : public DiscreteController {
 public:
-  Sequence& seq;
-  FillController(Sequence& s) : seq(s) {
+  GateSequencer& seq;
+  FillController(GateSequencer& s) : seq(s) {
     range = seq.length;
     value = -1;
   }
@@ -314,8 +315,8 @@ public:
 
 class RotateController : public DiscreteController {
 public:
-  Sequence& seq;
-  RotateController(Sequence& s) : seq(s) {
+  GateSequencer& seq;
+  RotateController(GateSequencer& s) : seq(s) {
     range = SEQUENCER_ROTATION_RANGE;
   }
   void hasChanged(int8_t val){
@@ -375,8 +376,8 @@ void setup(){
 //   SEQUENCER_LEDS_DDR |= _BV(SEQUENCER_LED_B_PIN);
   SEQUENCER_LEDS_DDR |= _BV(SEQUENCER_LED_C_PIN);
 
-  seqA.next = &seqB;
-  seqB.next = &seqA;
+  seqA.linked = &seqB;
+  seqB.linked = &seqA;
 
   sei();
 
