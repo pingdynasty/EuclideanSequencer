@@ -27,6 +27,8 @@ public:
   T compute(int8_t slots, int8_t pulses){
     bits = 0UL;
     pos = 0;
+    if(!pulses)
+      return bits;
     /* Figure 11 */
     int8_t divisor = slots - pulses;
     remainder[0] = pulses; 
