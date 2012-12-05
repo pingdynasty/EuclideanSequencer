@@ -27,15 +27,15 @@ public:
     printNewline();
   }
 #endif
-  /* Rotate Left */
+  /* Rotate Right */
   void ror(uint8_t steps){
     bits = (bits << steps) | (bits >> (length-steps));
-    offset += steps;
+    offset -= steps;
   }
-  /* Rotate Right */
+  /* Rotate Left */
   void rol(uint8_t steps){
     bits = (bits >> steps) | (bits << (length-steps));
-    offset -= steps;
+    offset += steps;
   }
   bool next(){
     if(pos >= length)
