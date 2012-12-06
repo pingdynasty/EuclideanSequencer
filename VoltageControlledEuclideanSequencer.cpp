@@ -1,9 +1,12 @@
+#define SERIAL_DEBUG
+
 #include <inttypes.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include "device.klasmata.h"
 #include "adc_freerunner.h"
-#include "DiscreteController.h"
+// #include "DiscreteController.h"
+#include "DeadbandController.h"
 #include "Sequence.h"
 
 #ifdef SERIAL_DEBUG
@@ -45,7 +48,7 @@ enum GateSequencerMode {
 class GateSequencer : public Sequence<uint32_t> {
 public:
   GateSequencerMode mode;
-//   GateSequencer* linked;
+  //   GateSequencer* linked;
   GateSequencer(uint8_t p1, uint8_t p2, uint8_t p3, uint8_t p4):
     output(p1), trigger(p2), alternate(p3), led(p4){
     SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(trigger);
@@ -67,17 +70,17 @@ public:
     mode = newmode;
   }
   void push(){
-//     if(isOn())
-//       linked->on();
-//     else
-//       linked->off();
+    //     if(isOn())
+    //       linked->on();
+    //     else
+    //       linked->off();
   }
   bool isFollowing(){
     return !(mode & _BV(LEADING_BIT));
   }
   void follow(){
-//     mode = (GateSequencerMode)(mode & ~_BV(LEADING_BIT));
-//     linked->mode = (GateSequencerMode)(linked->mode | _BV(LEADING_BIT));
+    //     mode = (GateSequencerMode)(mode & ~_BV(LEADING_BIT));
+    //     linked->mode = (GateSequencerMode)(linked->mode | _BV(LEADING_BIT));
   }
   void rise(){
     switch(mode){
@@ -96,7 +99,7 @@ public:
     case TRIGGERING_LEADING:
       if(next()){
 	on();
-// 	linked->on();
+	// 	linked->on();
       }
       if(pos >= length)
 	follow();
@@ -111,9 +114,9 @@ public:
     case DISABLED_LEADING:
       next();
       off();
-//       linked->off();
-//       if(pos >= length)
-// 	follow();
+      //       linked->off();
+      //       if(pos >= length)
+      // 	follow();
       break;
     case DISABLED_FOLLOWING:
     case TRIGGERING_FOLLOWING:
@@ -128,7 +131,7 @@ public:
     switch(mode){
     case TRIGGERING_LEADING:
       off();
-//       linked->off();
+      //       linked->off();
       break;
     case ALTERNATING:
     case ALTERNATING_LEADING:
@@ -142,7 +145,8 @@ public:
     }
   }
   void reset(){
-    pos = 0;
+    Sequence<uint32_t>::reset();
+    //     pos = 0;
     off();
   }
   inline void on(){
@@ -227,48 +231,51 @@ GateSequencer seqA(SEQUENCER_OUTPUT_PIN_A,
 		   SEQUENCER_ALTERNATE_SWITCH_PIN_A,
 		   SEQUENCER_LED_A_PIN);
 
-class StepController : public DiscreteController {
-public:
-  GateSequencer& seq;
-  DiscreteController& fills;
-  StepController(GateSequencer& s, DiscreteController& f) : seq(s), fills(f) {
-    range = SEQUENCER_STEPS_RANGE;
-    value = -1;
-  }
-  void hasChanged(int8_t steps){
-    steps += SEQUENCER_STEPS_MINIMUM;
-    seq.length = steps;
-    fills.range = steps;
-    fills.value = -1; // force fills.hasChanged() to be called
-  }
-};
+// deadband defined as one quarter of value range divided by number of values (4096/32/4)
+#define DEADBAND_THRESHOLD 32
 
-class FillController : public DiscreteController {
-public:
-  GateSequencer& seq;
-  FillController(GateSequencer& s) : seq(s) {
-    range = seq.length;
-    value = -1;
-  }
-  void hasChanged(int8_t val){
-    seq.calculate(val+1); // range is 1 to seq.length
-  }
-};
+// class StepController : public DeadbandController<uint16_t, DEADBAND_THRESHOLD> {
+// public:
+//   GateSequencer& seq;
+//   DiscreteController& fills;
+//   StepController(GateSequencer& s, DiscreteController& f) : seq(s), fills(f) {
+//     range = SEQUENCER_STEPS_RANGE;
+//     value = -1;
+//   }
+//   void hasChanged(int16_t steps){
+//     steps += SEQUENCER_STEPS_MINIMUM;
+//     seq.length = steps;
+//     fills.range = steps;
+//     fills.value = -1; // force fills.hasChanged() to be called
+//   }
+// };
 
-class RotateController : public DiscreteController {
-public:
-  GateSequencer& seq;
-  RotateController(GateSequencer& s) : seq(s) {
-    range = SEQUENCER_ROTATION_RANGE;
-  }
-  void hasChanged(int8_t val){
-    val -= SEQUENCER_ROTATION_MINIMUM;
-    if(val > seq.offset)
-      seq.rol(val-seq.offset);
-    else if(val < seq.offset)
-      seq.ror(seq.offset-val);
-  }
-};
+// class FillController : public DeadbandController<uint16_t, DEADBAND_THRESHOLD> {
+// public:
+//   GateSequencer& seq;
+//   FillController(GateSequencer& s) : seq(s) {
+//     range = seq.length;
+//     value = -1;
+//   }
+//   void hasChanged(int8_t val){
+//     seq.calculate(val+1); // range is 1 to seq.length
+//   }
+// };
+
+// class RotateController : public DiscreteController {
+// public:
+//   GateSequencer& seq;
+//   RotateController(GateSequencer& s) : seq(s) {
+//     range = SEQUENCER_ROTATION_RANGE;
+//   }
+//   void hasChanged(int8_t val){
+//     val -= SEQUENCER_ROTATION_MINIMUM;
+//     if(val > seq.offset)
+//       seq.rol(val-seq.offset);
+//     else if(val < seq.offset)
+//       seq.ror(seq.offset-val);
+//   }
+// };
 
 /* Reset interrupt */
 SIGNAL(INT0_vect){
@@ -329,15 +336,58 @@ void setup(){
 //   PORTB |= _BV(PORTB5);
 }
 
-FillController fillA(seqA);
-StepController stepA(seqA, fillA);
-RotateController rotateA(seqA);
+bool recalculate = true;
+
+class SequenceController : public DeadbandController<DEADBAND_THRESHOLD> {
+  void hasChanged(uint16_t value){
+    recalculate = true;
+  }
+};
+
+// class RotateController : public DeadbandController<int16_t, DEADBAND_THRESHOLD> {
+class RotateController : public DeadbandController<DEADBAND_THRESHOLD> {
+  void hasChanged(uint16_t val){
+    val >>= 8; // scale 0-4095 down to 0-15
+//     val += SEQUENCER_ROTATION_MINIMUM; // scale 0-15 to -7 to 8
+    seqA.rotate(val);
+//     if(val > seqA.offset)
+//       seqA.rol(val-seqA.offset);
+//     else if(val < seqA.offset)
+//       seqA.ror(seqA.offset-val);
+#ifdef SERIAL_DEBUG
+    printInteger(val);
+    printByte(':');
+    printInteger(seqA.offset);
+    printNewline();
+#endif
+  }
+};
+
+SequenceController fillA;
+SequenceController stepA;
+RotateController rotateA;
+
+// FillController fillA(seqA);
+// StepController stepA(seqA, fillA);
+// RotateController rotateA(seqA);
 
 void loop(){
   stepA.update(getAnalogValue(SEQUENCER_STEP_A_CONTROL));
   fillA.update(getAnalogValue(SEQUENCER_FILL_A_CONTROL));
-  rotateA.update(getAnalogValue(SEQUENCER_ROTATE_A_CONTROL));
-
+  if(recalculate){
+    uint8_t steps = (stepA.value >> 7) + 1;
+    uint8_t fills = ((fillA.value >> 2) * steps) / (ADC_VALUE_RANGE >> 2) + 1;
+    seqA.length = steps;
+    seqA.calculate(fills);
+#ifdef SERIAL_DEBUG
+    printInteger(steps);
+    printByte('.');
+    printInteger(fills);
+    printNewline();
+#endif
+    recalculate = false;
+  }
+  rotateA.update(getAnalogValue(SEQUENCER_ROTATE_A_CONTROL));  
   seqA.update();
 
 #ifdef SERIAL_DEBUG
