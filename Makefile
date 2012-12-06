@@ -11,7 +11,7 @@ UPLOAD_RATE = 19200
 
 ARDUINO = $(INSTALL_DIR)/hardware/cores/arduino
 
-CXXSRC = EuclideanSequencer.cpp adc_freerunner.cpp main.cpp
+CXXSRC = EuclideanSequencer.cpp main.cpp
 SRC = wiring_serial.c
 
 ############################################################################

@@ -1,23 +1,16 @@
+#define SERIAL_DEBUG
+
 #include <inttypes.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include "device.h"
-#include "bjorklund.h"
-#include "adc_freerunner.h"
-#include "DiscreteController.h"
-
-// #define SERIAL_DEBUG
+#include "adc_freerunner.cpp"
+#include "DeadbandController.h"
+#include "Sequence.h"
 
 #ifdef SERIAL_DEBUG
 #include "serial.h"
 #endif // SERIAL_DEBUG
-
-/* effective steps range is 1 to 16 */
-#define SEQUENCER_STEPS_RANGE       16
-#define SEQUENCER_STEPS_MINIMUM     1
-/* effective rotation range is -7 to 8 */
-#define SEQUENCER_ROTATION_RANGE    16
-#define SEQUENCER_ROTATION_MINIMUM  -7
 
 inline bool clockIsHigh(){
   return !(SEQUENCER_CLOCK_PINS & _BV(SEQUENCER_CLOCK_PIN));
@@ -31,48 +24,20 @@ inline bool isChained(){
   return !(SEQUENCER_CHAINED_SWITCH_PINS & _BV(SEQUENCER_CHAINED_SWITCH_PIN));
 }
 
-template<typename T>
-class Sequence {
+class GateSequencer;
+
+class SequenceController : public DeadbandController<SEQUENCER_DEADBAND_THRESHOLD> {
 public:
-  Sequence() : pos(0), offset(0) {}
-  void calculate(int fills){
-    Bjorklund<T, 10> algo;
-    T newbits;
-    newbits = algo.compute(length, fills);
-    // rotate 
-    if(offset > 0)
-      newbits = (newbits >> offset) | (newbits << (length-offset));
-    else
-      newbits = (newbits << -offset) | (newbits >> (length+offset));
-    bits = newbits;
-  }
-#ifdef SERIAL_DEBUG
-  void print(){
-    for(int i=0; i<length; ++i)
-      serialWrite((bits & (1UL<<i)) ? 'x' : '.');
-    printNewline();
-  }
-#endif
-  /* Rotate Left */
-  void rol(uint8_t steps){
-    bits = (bits << steps) | (bits >> (length-steps));
-    offset += steps;
-  }
-  /* Rotate Right */
-  void ror(uint8_t steps){
-    bits = (bits >> steps) | (bits << (length-steps));
-    offset -= steps;
-  }
-  bool next(){
-    if(pos >= length)
-      pos = 0;
-    return bits & (1UL << pos++);
-  }
-// private:
-  T bits;
-  uint8_t length;
-  int8_t offset;
-  volatile uint8_t pos;
+  GateSequencer* seq;
+  SequenceController(GateSequencer* s) : seq(s) {}
+  void hasChanged(uint16_t value);
+};
+
+class RotateController : public DeadbandController<SEQUENCER_DEADBAND_THRESHOLD> {
+public:
+  GateSequencer* seq;
+  RotateController(GateSequencer* s) : seq(s) {}
+  void hasChanged(uint16_t val);
 };
 
 #define TRIGGERING_BIT  1
@@ -94,10 +59,13 @@ enum GateSequencerMode {
 
 class GateSequencer : public Sequence<uint16_t> {
 public:
+  SequenceController step;
+  SequenceController fill;
+  RotateController rotation;
   GateSequencerMode mode;
   GateSequencer* linked;
   GateSequencer(uint8_t p1, uint8_t p2, uint8_t p3, uint8_t p4):
-    output(p1), trigger(p2), alternate(p3), led(p4){
+    step(this), fill(this), rotation(this), output(p1), trigger(p2), alternate(p3), led(p4){
     SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(trigger);
     SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(trigger);
     SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(alternate);
@@ -106,8 +74,21 @@ public:
     SEQUENCER_LEDS_DDR |= _BV(led);
     SEQUENCER_LEDS_PORT |= _BV(led);
     off();
+    recalculate = true;
   }
   void update(){
+    if(recalculate){
+      uint8_t s = SEQUENCER_STEPS_RANGE - (step.value >> 8);
+      uint8_t f = s - ((fill.value >> 2) * s) / (ADC_VALUE_RANGE >> 2);
+      calculate(s, f);
+      recalculate = false;
+#ifdef SERIAL_DEBUG
+      printInteger(s);
+      printByte('.');
+      printInteger(f);
+      printNewline();
+#endif
+    }
     GateSequencerMode newmode;
     if(isChained())
       newmode = (GateSequencerMode)((mode | _BV(CHAINED_BIT)) & (_BV(CHAINED_BIT)|_BV(LEADING_BIT)));
@@ -268,12 +249,28 @@ public:
   }
 #endif
 
+  bool recalculate;
 private:
   uint8_t output;
   uint8_t trigger;
   uint8_t alternate;
   uint8_t led;
 };
+
+void SequenceController::hasChanged(uint16_t value){
+  seq->recalculate = true;
+}
+
+void RotateController::hasChanged(uint16_t val){
+  val >>= 8; // scale 0-4095 down to 0-15
+  seq->rotate(val);
+#ifdef SERIAL_DEBUG
+  printInteger(val);
+  printByte(':');
+  printInteger(seq->offset);
+  printNewline();
+#endif
+}
 
 GateSequencer seqA(SEQUENCER_OUTPUT_PIN_A, 
 		   SEQUENCER_TRIGGER_SWITCH_PIN_A,
@@ -284,49 +281,6 @@ GateSequencer seqB(SEQUENCER_OUTPUT_PIN_B,
 		   SEQUENCER_TRIGGER_SWITCH_PIN_B,
 		   SEQUENCER_ALTERNATE_SWITCH_PIN_B,
 		   SEQUENCER_LED_B_PIN);
-
-class StepController : public DiscreteController {
-public:
-  GateSequencer& seq;
-  DiscreteController& fills;
-  StepController(GateSequencer& s, DiscreteController& f) : seq(s), fills(f) {
-    range = SEQUENCER_STEPS_RANGE;
-    value = -1;
-  }
-  void hasChanged(int8_t steps){
-    steps += SEQUENCER_STEPS_MINIMUM;
-    seq.length = steps;
-    fills.range = steps;
-    fills.value = -1; // force fills.hasChanged() to be called
-  }
-};
-
-class FillController : public DiscreteController {
-public:
-  GateSequencer& seq;
-  FillController(GateSequencer& s) : seq(s) {
-    range = seq.length;
-    value = -1;
-  }
-  void hasChanged(int8_t val){
-    seq.calculate(val+1); // range is 1 to seq.length
-  }
-};
-
-class RotateController : public DiscreteController {
-public:
-  GateSequencer& seq;
-  RotateController(GateSequencer& s) : seq(s) {
-    range = SEQUENCER_ROTATION_RANGE;
-  }
-  void hasChanged(int8_t val){
-    val -= SEQUENCER_ROTATION_MINIMUM;
-    if(val > seq.offset)
-      seq.rol(val-seq.offset);
-    else if(val < seq.offset)
-      seq.ror(seq.offset-val);
-  }
-};
 
 /* Reset interrupt */
 SIGNAL(INT0_vect){
@@ -363,53 +317,30 @@ void setup(){
   // enables INT0 and INT1
   SEQUENCER_CLOCK_DDR &= ~_BV(SEQUENCER_CLOCK_PIN);
   SEQUENCER_CLOCK_PORT |= _BV(SEQUENCER_CLOCK_PIN); // enable pull-up resistor
-
   SEQUENCER_RESET_DDR &= ~_BV(SEQUENCER_RESET_PIN);
   SEQUENCER_RESET_PORT |= _BV(SEQUENCER_RESET_PIN); // enable pull-up resistor
-
   setup_adc();
-
   SEQUENCER_CHAINED_SWITCH_DDR  &= ~_BV(SEQUENCER_CHAINED_SWITCH_PIN);
   SEQUENCER_CHAINED_SWITCH_PORT |= _BV(SEQUENCER_CHAINED_SWITCH_PIN);
-
-//   SEQUENCER_LEDS_DDR |= _BV(SEQUENCER_LED_A_PIN);
-//   SEQUENCER_LEDS_DDR |= _BV(SEQUENCER_LED_B_PIN);
   SEQUENCER_LEDS_DDR |= _BV(SEQUENCER_LED_C_PIN);
-
   seqA.linked = &seqB;
   seqB.linked = &seqA;
-
   sei();
-
 #ifdef SERIAL_DEBUG
   beginSerial(9600);
   printString("hello\n");
 #endif
-  // debug
-//   DDRB |= _BV(PORTB4);
-//   PORTB |= _BV(PORTB4);
-//   PORTB &= ~_BV(PORTB4);
-//   DDRB |= _BV(PORTB5);
-//   PORTB |= _BV(PORTB5);
 }
 
-FillController fillA(seqA);
-StepController stepA(seqA, fillA);
-RotateController rotateA(seqA);
-FillController fillB(seqB);
-StepController stepB(seqB, fillB);
-RotateController rotateB(seqB);
-
 void loop(){
-  stepA.update(getAnalogValue(SEQUENCER_STEP_A_CONTROL));
-  fillA.update(getAnalogValue(SEQUENCER_FILL_A_CONTROL));
-  rotateA.update(getAnalogValue(SEQUENCER_ROTATE_A_CONTROL));
-
-  stepB.update(getAnalogValue(SEQUENCER_STEP_B_CONTROL));
-  fillB.update(getAnalogValue(SEQUENCER_FILL_B_CONTROL));
-  rotateB.update(getAnalogValue(SEQUENCER_ROTATE_B_CONTROL));
-
+  seqA.rotation.update(getAnalogValue(SEQUENCER_ROTATE_A_CONTROL));
+  seqA.step.update(getAnalogValue(SEQUENCER_STEP_A_CONTROL));
+  seqA.fill.update(getAnalogValue(SEQUENCER_FILL_A_CONTROL));
   seqA.update();
+
+  seqB.rotation.update(getAnalogValue(SEQUENCER_ROTATE_B_CONTROL));
+  seqB.step.update(getAnalogValue(SEQUENCER_STEP_B_CONTROL));
+  seqB.fill.update(getAnalogValue(SEQUENCER_FILL_B_CONTROL));
   seqB.update();
 
   if(isChained() && seqA.isFollowing() && seqB.isFollowing())
@@ -435,7 +366,4 @@ void loop(){
     printNewline();
   }
 #endif
-
-  // debug
-//   PORTB ^= _BV(PORTB5);
 }

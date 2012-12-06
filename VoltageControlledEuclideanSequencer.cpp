@@ -4,17 +4,13 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include "device.klasmata.h"
-#include "adc_freerunner.h"
+#include "adc_freerunner.cpp"
 #include "DeadbandController.h"
 #include "Sequence.h"
 
 #ifdef SERIAL_DEBUG
 #include "serial.h"
 #endif // SERIAL_DEBUG
-
-#define SEQUENCER_STEPS_RANGE       32
-// deadband defined as one quarter of value range divided by number of values (4096/32/4)
-#define SEQUENCER_DEADBAND_THRESHOLD 32
 
 inline bool clockIsHigh(){
   return !(SEQUENCER_CLOCK_PINS & _BV(SEQUENCER_CLOCK_PIN));
@@ -47,12 +43,9 @@ public:
   //   GateSequencer* linked;
   GateSequencer(uint8_t p1, uint8_t p2, uint8_t p3, uint8_t p4):
     output(p1), trigger(p2), alternate(p3), led(p4){
-    SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(trigger);
     SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(trigger);
-    SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(alternate);
     SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(alternate);
     SEQUENCER_OUTPUT_DDR |= _BV(output);
-    SEQUENCER_LEDS_DDR |= _BV(led);
     SEQUENCER_LEDS_PORT |= _BV(led);
     off();
   }

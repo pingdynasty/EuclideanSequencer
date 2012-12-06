@@ -1,3 +1,9 @@
+#define ADC_CHANNELS                        6
+#define ADC_OVERSAMPLING                    4
+#define ADC_VALUE_RANGE                    (1024*ADC_OVERSAMPLING)
+
+#define SEQUENCER_STEPS_RANGE               16
+#define SEQUENCER_DEADBAND_THRESHOLD        (ADC_VALUE_RANGE/SEQUENCER_STEPS_RANGE/4)
 
 #define SEQUENCER_FILL_A_CONTROL            0
 #define SEQUENCER_FILL_B_CONTROL            1
