@@ -60,15 +60,20 @@ BOOST_AUTO_TEST_CASE(testNoFills){
   }
 }
 
+int countFills(Sequence32 seq){
+  int hits = 0;
+  for(int i=0; i<seq.length; ++i){
+    if(seq.next())
+      hits++;
+  }
+  return hits;
+}
+
 void testFill(Sequence32 seq, uint32_t fills){
   for(int n=fills; n<32; ++n){
     seq.length = n;
     seq.calculate(fills);
-    int hits = 0;
-    for(int i=0; i<n; ++i){
-      if(seq.next())
-	hits++;
-    }
+    int hits = countFills(seq);
     BOOST_CHECK_EQUAL(hits, fills);
   }
 }
@@ -92,66 +97,55 @@ int getIndex(Sequence32 seq){
   return index;
 }
 
-void testRotateRight(Sequence32 seq){
+void testRotate(Sequence32 seq){
   seq.calculate(1);
   int index = getIndex(seq);
   BOOST_CHECK(index < seq.length);
-  for(int i=1; i<seq.length; ++i){
-    seq.ror(i);
+  for(int i=0; i<32; i+=++i){
+    seq.rotate(i);
     seq.print();
-    index = (index + i) % seq.length;
-    BOOST_CHECK_EQUAL(index, getIndex(seq));
+    int expect = index - i;
+    while(expect < 0)
+      expect += seq.length;
+    BOOST_CHECK_EQUAL(expect, getIndex(seq));
   }
 }
 
-BOOST_AUTO_TEST_CASE(testRotateRightOneFill){
+BOOST_AUTO_TEST_CASE(testRotateOneFill){
   Sequence32 seq;
   for(int i=1; i<32; ++i){
     seq.length = i;
-    testRotateRight(seq);
+    testRotate(seq);
   }
 }
 
-void testRotateLeft(Sequence32 seq){
-  seq.calculate(1);
-  int index = getIndex(seq);
-  BOOST_CHECK(index < seq.length);
-  for(int i=1; i<seq.length; ++i){
-    seq.rol(i);
-    seq.print();
-    index = index - i;
-    if(index < 0)
-      index = seq.length + index;
-    BOOST_CHECK_EQUAL(index, getIndex(seq));
-  }
-}
-
-BOOST_AUTO_TEST_CASE(testRotateLeftOneFill){
-  Sequence32 seq;
-  for(int i=1; i<32; ++i){
-    seq.length = i;
-    testRotateLeft(seq);
-  }
-}
-
-BOOST_AUTO_TEST_CASE(testRotateRightRecalculate){
+BOOST_AUTO_TEST_CASE(testRotateAndRecalculate){
   Sequence32 seq;
   seq.length = 24;
   seq.calculate(3);
-  seq.ror(3);
+  seq.rotate(3);
   int index = getIndex(seq);
   seq.calculate(1);
   seq.calculate(3);
   BOOST_CHECK_EQUAL(index, getIndex(seq));
 }
 
-BOOST_AUTO_TEST_CASE(testRotateLeftRecalculate){
+BOOST_AUTO_TEST_CASE(testReduceLengthAndRecalculate){
   Sequence32 seq;
-  seq.length = 17;
-  seq.calculate(2);
-  seq.rol(9);
-  int index = getIndex(seq);
+  seq.length = 21;
+  seq.calculate(3);
+  BOOST_CHECK_EQUAL(3, countFills(seq));  
+    seq.print();
+  seq.length = 19;
+  seq.calculate(3);
+    seq.print();
+  BOOST_CHECK_EQUAL(3, countFills(seq));  
+  seq.length = 11;
+  seq.calculate(3);
+    seq.print();
+  BOOST_CHECK_EQUAL(3, countFills(seq));  
+  seq.length = 3;
   seq.calculate(15);
-  seq.calculate(2);
-  BOOST_CHECK_EQUAL(index, getIndex(seq));
+    seq.print();
+  BOOST_CHECK_EQUAL(3, countFills(seq));  
 }
