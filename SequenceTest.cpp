@@ -135,17 +135,32 @@ BOOST_AUTO_TEST_CASE(testReduceLengthAndRecalculate){
   seq.length = 21;
   seq.calculate(3);
   BOOST_CHECK_EQUAL(3, countFills(seq));  
-    seq.print();
   seq.length = 19;
   seq.calculate(3);
-    seq.print();
   BOOST_CHECK_EQUAL(3, countFills(seq));  
   seq.length = 11;
   seq.calculate(3);
-    seq.print();
   BOOST_CHECK_EQUAL(3, countFills(seq));  
   seq.length = 3;
   seq.calculate(15);
-    seq.print();
   BOOST_CHECK_EQUAL(3, countFills(seq));  
 }
+
+BOOST_AUTO_TEST_CASE(testRotatedPosition){
+  Sequence32 seq;
+  seq.length = 16;
+  seq.calculate(1);
+  BOOST_CHECK_EQUAL(15, getIndex(seq));
+  seq.rotate(1);
+  BOOST_CHECK_EQUAL(14, getIndex(seq));
+  seq.rotate(7);
+  BOOST_CHECK_EQUAL(7, getIndex(seq));
+  seq.rotate(15);
+  BOOST_CHECK_EQUAL(15, getIndex(seq));
+  seq.rotate(0);
+  BOOST_CHECK_EQUAL(0, getIndex(seq));
+}
+
+// turning the rotation anti-clockwise moves the sequence forward.....
+
+// todo: test reset, rotate and reset

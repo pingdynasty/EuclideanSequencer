@@ -5,17 +5,21 @@
 #include "serial.h"
 #endif // SERIAL_DEBUG
 
+#define SEQUENCE_ALGORITHM_ARRAY_SIZE 10
+
 template<typename T>
 class Sequence {
 public:
   Sequence() : pos(0) {}
 
-  void calculate(int fills){
-    Bjorklund<T, 10> algo;
+  void calculate(uint8_t steps, uint8_t fills){
+    Bjorklund<T, SEQUENCE_ALGORITHM_ARRAY_SIZE> algo;
     T newbits;
-    newbits = algo.compute(length, fills);
+    newbits = algo.compute(steps, fills);
+    length = steps;
     bits = newbits;
   }
+
 #ifdef SERIAL_DEBUG
   void print(){
     for(int i=0; i<length; ++i)
@@ -45,6 +49,7 @@ public:
       pos = 0;
     return bits & (1UL << pos++);
   }
+
 // private:
   T bits;
   uint8_t length;
