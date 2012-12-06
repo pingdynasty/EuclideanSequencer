@@ -8,35 +8,38 @@
 template<typename T>
 class Sequence {
 public:
-  Sequence() : pos(0), offset(0) {}
+  Sequence() : pos(0) {}
+
   void calculate(int fills){
     Bjorklund<T, 10> algo;
     T newbits;
     newbits = algo.compute(length, fills);
-    // rotate 
-    if(offset > 0)
-      newbits = (newbits >> offset) | (newbits << (length-offset));
-    else
-      newbits = (newbits << -offset) | (newbits >> (length+offset));
     bits = newbits;
   }
 #ifdef SERIAL_DEBUG
   void print(){
     for(int i=0; i<length; ++i)
-      serialWrite((bits & (1UL<<i)) ? 'x' : '-');
+      serialWrite(next() ? 'x' : '-');
+//       serialWrite((bits & (1UL<<i)) ? 'x' : '-');
     printNewline();
   }
 #endif
-  /* Rotate Right */
-  void ror(uint8_t steps){
-    bits = (bits << steps) | (bits >> (length-steps));
-    offset -= steps;
+
+  void reset(){
+    pos = offset % length;
   }
-  /* Rotate Left */
-  void rol(uint8_t steps){
-    bits = (bits >> steps) | (bits << (length-steps));
-    offset += steps;
+
+  void rotate(int8_t steps){
+    int8_t nudge = (steps - offset) % length;
+    if(pos + nudge > length)
+      pos = pos + nudge - length;
+    else if(pos + nudge < 0)
+      pos = pos + nudge + length;
+    else
+      pos = pos + nudge;
+    offset = steps;
   }
+
   bool next(){
     if(pos >= length)
       pos = 0;
