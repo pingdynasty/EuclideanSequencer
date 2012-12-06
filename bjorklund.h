@@ -21,7 +21,7 @@
   for m=32, l+1 < 9
 */
 
-template<typename T, int BJORKLUND_ARRAY_SIZE>
+template<typename T, uint8_t BJORKLUND_ARRAY_SIZE>
 class Bjorklund {
 public:
   T compute(int8_t slots, int8_t pulses){
