@@ -1,4 +1,4 @@
-#define SERIAL_DEBUG
+// #define SERIAL_DEBUG
 
 #include <inttypes.h>
 #include <avr/io.h>
