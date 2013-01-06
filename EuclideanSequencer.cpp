@@ -40,21 +40,22 @@ public:
   void hasChanged(uint16_t val);
 };
 
+#define LEADING_BIT     0
 #define TRIGGERING_BIT  1
 #define ALTERNATING_BIT 2
 #define CHAINED_BIT     3
-#define LEADING_BIT     4
+#define DISABLED_BIT    4
 
 enum GateSequencerMode {
-  DISABLED                   = 0,
-  TRIGGERING                 = _BV(TRIGGERING_BIT),
-  ALTERNATING                = _BV(ALTERNATING_BIT),
-  TRIGGERING_FOLLOWING       = (_BV(TRIGGERING_BIT)|_BV(CHAINED_BIT)),
+  DISABLED                   =  _BV(DISABLED_BIT),
+  TRIGGERING                 =   _BV(TRIGGERING_BIT),
+  ALTERNATING                =  _BV(ALTERNATING_BIT),
+  DISABLED_FOLLOWING         =  _BV(DISABLED_BIT)   |_BV(CHAINED_BIT),
+  TRIGGERING_FOLLOWING       =  (_BV(TRIGGERING_BIT)|_BV(CHAINED_BIT)),
   ALTERNATING_FOLLOWING      = (_BV(ALTERNATING_BIT)|_BV(CHAINED_BIT)),
-  TRIGGERING_LEADING         = (_BV(TRIGGERING_BIT)|_BV(CHAINED_BIT)|_BV(LEADING_BIT)),
-  ALTERNATING_LEADING        = (_BV(ALTERNATING_BIT)|_BV(CHAINED_BIT)|_BV(LEADING_BIT)),
-  DISABLED_FOLLOWING         = (_BV(CHAINED_BIT)),
-  DISABLED_LEADING           = (_BV(CHAINED_BIT)|_BV(LEADING_BIT))
+  DISABLED_LEADING           = (_BV(DISABLED_BIT)   |_BV(CHAINED_BIT)|_BV(LEADING_BIT)),
+  TRIGGERING_LEADING         =  (_BV(TRIGGERING_BIT)|_BV(CHAINED_BIT)|_BV(LEADING_BIT)),
+  ALTERNATING_LEADING        = (_BV(ALTERNATING_BIT)|_BV(CHAINED_BIT)|_BV(LEADING_BIT))
 };
 
 class GateSequencer : public Sequence<uint16_t> {
@@ -62,10 +63,13 @@ public:
   SequenceController step;
   SequenceController fill;
   RotateController rotation;
-  GateSequencerMode mode;
   GateSequencer* linked;
+  volatile GateSequencerMode mode;
+  bool recalculate;
+  bool lead;
   GateSequencer(uint8_t p1, uint8_t p2, uint8_t p3, uint8_t p4):
-    step(this), fill(this), rotation(this), output(p1), trigger(p2), alternate(p3), led(p4){
+    step(this), fill(this), rotation(this), mode(DISABLED), recalculate(true), lead(false),
+    output(p1), trigger(p2), alternate(p3), led(p4){
     SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(trigger);
     SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(trigger);
     SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(alternate);
@@ -74,7 +78,6 @@ public:
     SEQUENCER_LEDS_DDR |= _BV(led);
     SEQUENCER_LEDS_PORT |= _BV(led);
     off();
-    recalculate = true;
   }
   void update(){
     if(recalculate){
@@ -90,14 +93,14 @@ public:
 #endif
     }
     GateSequencerMode newmode;
-    if(isChained())
-      newmode = (GateSequencerMode)((mode | _BV(CHAINED_BIT)) & (_BV(CHAINED_BIT)|_BV(LEADING_BIT)));
+    if(isTriggering())
+      newmode = TRIGGERING;
+    else if(isAlternating())
+      newmode = ALTERNATING;
     else
       newmode = DISABLED;
-    if(isTriggering())
-      newmode = (GateSequencerMode)(newmode | _BV(TRIGGERING_BIT));
-    else if(isAlternating())
-      newmode = (GateSequencerMode)(newmode | _BV(ALTERNATING_BIT));
+    if(isChained())
+      newmode = (GateSequencerMode)(newmode | _BV(CHAINED_BIT));
     mode = newmode;
   }
   void push(){
@@ -106,12 +109,10 @@ public:
     else
       linked->off();
   }
-  bool isFollowing(){
-    return !(mode & _BV(LEADING_BIT));
-  }
   void follow(){
-    mode = (GateSequencerMode)(mode & ~_BV(LEADING_BIT));
-    linked->mode = (GateSequencerMode)(linked->mode | _BV(LEADING_BIT));
+    lead = false;
+    linked->lead = true;
+    linked->pos = 0;
   }
   void rise(){
     switch(mode){
@@ -128,55 +129,58 @@ public:
       off();
       break;
     case TRIGGERING_LEADING:
-      if(next()){
+    case TRIGGERING_FOLLOWING:
+      if(lead && next()){
 	on();
 	linked->on();
       }
-      if(pos >= length)
-	follow();
       break;
     case ALTERNATING_LEADING:
-      if(next())
-	toggle();
-      push();
-      if(pos >= length)
-	follow();
-      break;
-    case DISABLED_LEADING:
-      next();
-      off();
-      linked->off();
-      if(pos >= length)
-	follow();
+    case ALTERNATING_FOLLOWING:
+      if(lead){
+	if(next())
+	  toggle();
+	push();
+      }
       break;
     case DISABLED_FOLLOWING:
-    case TRIGGERING_FOLLOWING:
-    case ALTERNATING_FOLLOWING:
-      break;
-    default:
-      off();
+    case DISABLED_LEADING:
+      if(lead){
+	next();
+	off();
+	linked->off();
+      }
       break;
     }
   }
   void fall(){
     switch(mode){
-    case TRIGGERING_LEADING:
+    case DISABLED:
+    case TRIGGERING:
       off();
-      linked->off();
+      break;
+    case DISABLED_LEADING:
+    case DISABLED_FOLLOWING:
+    case TRIGGERING_LEADING:
+    case TRIGGERING_FOLLOWING:
+      if(lead){
+	off();
+	linked->off();
+	if(pos >= length)
+	  follow();
+      }
+      break;
+    case ALTERNATING_LEADING:
+    case ALTERNATING_FOLLOWING:
+      if(lead && pos >= length)
+	follow();
       break;
     case ALTERNATING:
-    case ALTERNATING_LEADING:
-    case TRIGGERING_FOLLOWING:
-    case ALTERNATING_FOLLOWING:
-      break;
-    case TRIGGERING:
-    default:
-      off();
       break;
     }
   }
   void reset(){
-    pos = 0;
+    Sequence<uint16_t>::reset();
     off();
   }
   inline void on(){
@@ -203,7 +207,6 @@ public:
   inline bool isEnabled(){
     return isAlternating() || isTriggering();
   }
-
 #ifdef SERIAL_DEBUG
   void dump(){
     printInteger(pos);
@@ -248,8 +251,6 @@ public:
     }
   }
 #endif
-
-  bool recalculate;
 private:
   uint8_t output;
   uint8_t trigger;
@@ -282,10 +283,15 @@ GateSequencer seqB(SEQUENCER_OUTPUT_PIN_B,
 		   SEQUENCER_ALTERNATE_SWITCH_PIN_B,
 		   SEQUENCER_LED_B_PIN);
 
-/* Reset interrupt */
-SIGNAL(INT0_vect){
+void reset(){
   seqA.reset();
   seqB.reset();
+  seqB.follow();
+}
+
+/* Reset interrupt */
+SIGNAL(INT0_vect){
+  reset();
   // hold everything until reset is released
   while(resetIsHigh());
 }
@@ -325,6 +331,7 @@ void setup(){
   SEQUENCER_LEDS_DDR |= _BV(SEQUENCER_LED_C_PIN);
   seqA.linked = &seqB;
   seqB.linked = &seqA;
+  reset();
   sei();
 #ifdef SERIAL_DEBUG
   beginSerial(9600);
@@ -342,9 +349,6 @@ void loop(){
   seqB.step.update(getAnalogValue(SEQUENCER_STEP_B_CONTROL));
   seqB.fill.update(getAnalogValue(SEQUENCER_FILL_B_CONTROL));
   seqB.update();
-
-  if(isChained() && seqA.isFollowing() && seqB.isFollowing())
-    seqB.follow();
 
 #ifdef SERIAL_DEBUG
   if(serialAvailable() > 0){
