@@ -22,19 +22,11 @@ inline bool resetIsHigh(){
 
 #define TRIGGERING_BIT  1
 #define ALTERNATING_BIT 2
-#define CHAINED_BIT     3
-#define LEADING_BIT     4
 
 enum GateSequencerMode {
   DISABLED                   = 0,
   TRIGGERING                 = _BV(TRIGGERING_BIT),
-  ALTERNATING                = _BV(ALTERNATING_BIT),
-  TRIGGERING_FOLLOWING       = (_BV(TRIGGERING_BIT)|_BV(CHAINED_BIT)),
-  ALTERNATING_FOLLOWING      = (_BV(ALTERNATING_BIT)|_BV(CHAINED_BIT)),
-  TRIGGERING_LEADING         = (_BV(TRIGGERING_BIT)|_BV(CHAINED_BIT)|_BV(LEADING_BIT)),
-  ALTERNATING_LEADING        = (_BV(ALTERNATING_BIT)|_BV(CHAINED_BIT)|_BV(LEADING_BIT)),
-  DISABLED_FOLLOWING         = (_BV(CHAINED_BIT)),
-  DISABLED_LEADING           = (_BV(CHAINED_BIT)|_BV(LEADING_BIT))
+  ALTERNATING                = _BV(ALTERNATING_BIT)
 };
 
 class GateSequencer : public Sequence<uint32_t> {
@@ -126,24 +118,6 @@ public:
     case ALTERNATING:
       printString(" ALTERNATING");
       break;
-    case TRIGGERING_FOLLOWING:
-      printString(" TRIGGERING_FOLLOWING");
-      break;
-    case ALTERNATING_FOLLOWING:
-      printString(" ALTERNATING_FOLLOWING");
-      break;
-    case TRIGGERING_LEADING:
-      printString(" TRIGGERING_LEADING");
-      break;
-    case ALTERNATING_LEADING:
-      printString(" ALTERNATING_LEADING");
-      break;
-    case DISABLED_FOLLOWING:
-      printString(" DISABLED_FOLLOWING");
-      break;
-    case DISABLED_LEADING:
-      printString(" DISABLED_LEADING");
-      break; 
     }
   }
 #endif
