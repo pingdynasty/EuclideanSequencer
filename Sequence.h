@@ -1,3 +1,6 @@
+#ifndef _SEQUENCE_H_
+#define _SEQUENCE_H_
+
 #include <inttypes.h>
 #include "bjorklund.h"
 
@@ -50,3 +53,5 @@ public:
   int8_t offset;
   volatile uint8_t pos;
 };
+
+#endif /* _SEQUENCE_H_ */
