@@ -157,8 +157,7 @@ int countHighsB(int clocks){
   return hits;
 }
 
-BOOST_AUTO_TEST_CASE(universeInOrder)
-{
+BOOST_AUTO_TEST_CASE(universeInOrder){
     BOOST_CHECK(2+2 == 4);
 }
 
