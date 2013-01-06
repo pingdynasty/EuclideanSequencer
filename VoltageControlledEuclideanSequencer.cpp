@@ -6,7 +6,7 @@
 #include "device.klasmata.h"
 #include "adc_freerunner.cpp"
 #include "DeadbandController.h"
-#include "Sequence.h"
+#include "GateSequencer.h"
 
 #ifdef SERIAL_DEBUG
 #include "serial.h"
@@ -22,112 +22,6 @@ inline bool resetIsHigh(){
 
 #define TRIGGERING_BIT  1
 #define ALTERNATING_BIT 2
-
-enum GateSequencerMode {
-  DISABLED                   = 0,
-  TRIGGERING                 = _BV(TRIGGERING_BIT),
-  ALTERNATING                = _BV(ALTERNATING_BIT)
-};
-
-class GateSequencer : public Sequence<uint32_t> {
-public:
-  GateSequencerMode mode;
-  //   GateSequencer* linked;
-  GateSequencer(uint8_t p1, uint8_t p2, uint8_t p3, uint8_t p4):
-    output(p1), trigger(p2), alternate(p3), led(p4){
-    SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(trigger);
-    SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(alternate);
-    SEQUENCER_OUTPUT_DDR |= _BV(output);
-    SEQUENCER_LEDS_PORT |= _BV(led);
-    off();
-  }
-  void update(){
-    if(isAlternating())
-      mode = ALTERNATING;
-    else
-      mode = TRIGGERING;
-  }
-  void rise(){
-    switch(mode){
-    case ALTERNATING:
-      if(next())
-	toggle();
-      break;
-    case TRIGGERING:
-      if(next())
-	on();
-      break;
-    }
-  }
-  void fall(){
-    switch(mode){
-    case TRIGGERING:
-      off();
-      break;
-    }
-  }
-  void reset(){
-    Sequence<uint32_t>::reset();
-    off();
-  }
-  inline void on(){
-    SEQUENCER_OUTPUT_PORT &= ~_BV(output);
-    SEQUENCER_LEDS_PORT |= _BV(led);
-  }
-  inline void off(){
-    SEQUENCER_OUTPUT_PORT |= _BV(output);
-    SEQUENCER_LEDS_PORT &= ~_BV(led);
-  }
-  inline void toggle(){
-    SEQUENCER_OUTPUT_PORT ^= _BV(output);
-    SEQUENCER_LEDS_PORT ^= _BV(led);
-  }
-  inline bool isOn(){
-    return !(SEQUENCER_OUTPUT_PINS & _BV(output));
-  }
-  inline bool isTriggering(){
-    return !(SEQUENCER_TRIGGER_SWITCH_PINS & _BV(trigger));
-  }
-  inline bool isAlternating(){
-    return !(SEQUENCER_ALTERNATE_SWITCH_PINS & _BV(alternate));
-  }
-  inline bool isEnabled(){
-    return isAlternating() || isTriggering();
-  }
-
-#ifdef SERIAL_DEBUG
-  void dump(){
-    printInteger(pos);
-    printString(", ");
-    printInteger(length);
-    printString(", ");
-    printInteger(offset);
-    if(isOn())
-      printString(", on");
-    if(isTriggering())
-      printString(", triggering");
-    if(isAlternating())
-      printString(", alternating");
-    switch(mode){
-    case DISABLED:
-      printString(" DISABLED");
-      break;
-    case TRIGGERING:
-      printString(" TRIGGERING");
-      break;
-    case ALTERNATING:
-      printString(" ALTERNATING");
-      break;
-    }
-  }
-#endif
-
-private:
-  uint8_t output;
-  uint8_t trigger;
-  uint8_t alternate;
-  uint8_t led;
-};
 
 GateSequencer seqA(SEQUENCER_OUTPUT_PIN_A, 
 		   SEQUENCER_TRIGGER_SWITCH_PIN_A,
@@ -183,47 +77,10 @@ void setup(){
 #endif
 }
 
-bool recalculate = true;
-
-class SequenceController : public DeadbandController<SEQUENCER_DEADBAND_THRESHOLD> {
-  void hasChanged(uint16_t value){
-    recalculate = true;
-  }
-};
-
-class RotateController : public DeadbandController<SEQUENCER_DEADBAND_THRESHOLD> {
-  void hasChanged(uint16_t val){
-    val >>= 8; // scale 0-4095 down to 0-15
-    seqA.rotate(val);
-#ifdef SERIAL_DEBUG
-    printInteger(val);
-    printByte(':');
-    printInteger(seqA.offset);
-    printNewline();
-#endif
-  }
-};
-
-SequenceController fillA;
-SequenceController stepA;
-RotateController rotateA;
-
 void loop(){
-  stepA.update(getAnalogValue(SEQUENCER_STEP_CONTROL));
-  fillA.update(getAnalogValue(SEQUENCER_FILL_CONTROL));
-  if(recalculate){
-    uint8_t steps = SEQUENCER_STEPS_RANGE - (stepA.value >> 7);
-    uint8_t fills = steps - ((fillA.value >> 2) * steps) / (ADC_VALUE_RANGE >> 2);
-    seqA.calculate(steps, fills);
-#ifdef SERIAL_DEBUG
-    printInteger(steps);
-    printByte('.');
-    printInteger(fills);
-    printNewline();
-#endif
-    recalculate = false;
-  }
-  rotateA.update(getAnalogValue(SEQUENCER_ROTATE_CONTROL));  
+  seqA.rotation.update(getAnalogValue(SEQUENCER_ROTATE_CONTROL));
+  seqA.step.update(getAnalogValue(SEQUENCER_STEP_CONTROL));
+  seqA.fill.update(getAnalogValue(SEQUENCER_FILL_CONTROL));
   seqA.update();
 
 #ifdef SERIAL_DEBUG

@@ -2,7 +2,9 @@
 #define ADC_OVERSAMPLING                    4
 #define ADC_VALUE_RANGE                    (1024*ADC_OVERSAMPLING)
 
+#define SEQUENCER_BITS_TYPE                 uint32_t
 #define SEQUENCER_STEPS_RANGE               32
+#define SEQUENCER_STEP_SCALING_FACTOR       7
 #define SEQUENCER_DEADBAND_THRESHOLD        (ADC_VALUE_RANGE/SEQUENCER_STEPS_RANGE/4)
 
 #define SEQUENCER_ROTATE_CONTROL            0
