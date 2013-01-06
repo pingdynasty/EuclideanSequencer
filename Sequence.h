@@ -10,7 +10,7 @@
 template<typename T>
 class Sequence {
 public:
-  Sequence() : pos(0) {}
+ Sequence() : pos(0), length(1) {}
 
   void calculate(uint8_t steps, uint8_t fills){
     Bjorklund<T, SEQUENCE_ALGORITHM_ARRAY_SIZE> algo;
