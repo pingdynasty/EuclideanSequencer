@@ -30,8 +30,11 @@ bool outputIsHighB(){
   return !(PINB & _BV(PORTB1));
 }
 
-void setChainedMode(){
-  PINB &= ~_BV(PORTB2);
+void setChainedMode(bool chain = true){
+  if(chain)
+    PINB &= ~_BV(PORTB2);
+  else
+    PINB |= _BV(PORTB2);
 }
 
 void setTriggerModeA(){
@@ -157,6 +160,28 @@ int countHighsB(int clocks){
   return hits;
 }
 
+int firstHighA(int steps){
+  int pos = steps;
+  for(int i=0; i<steps; ++i){
+    setClock(true);
+    if(outputIsHighA())
+      pos = i;
+    setClock(false);
+  }
+  return pos;
+}
+
+int firstHighB(int steps){
+  int pos = steps;
+  for(int i=0; i<steps; ++i){
+    setClock(true);
+    if(outputIsHighB())
+      pos = i;
+    setClock(false);
+  }
+  return pos;
+}
+
 BOOST_AUTO_TEST_CASE(universeInOrder){
     BOOST_CHECK(2+2 == 4);
 }
@@ -166,6 +191,16 @@ BOOST_AUTO_TEST_CASE(testDefaults){
   loop();
   BOOST_CHECK(!resetIsHigh());
   BOOST_CHECK(!clockIsHigh());
+}
+
+BOOST_AUTO_TEST_CASE(testSetClock){
+  PinFixture fixture;
+  setClock(true);
+  BOOST_CHECK(clockIsHigh());
+  setClock(false);
+  BOOST_CHECK(!clockIsHigh());
+  setClock(true);
+  BOOST_CHECK(clockIsHigh());
 }
 
 BOOST_AUTO_TEST_CASE(testOneTriggerSequence){
@@ -235,3 +270,143 @@ BOOST_AUTO_TEST_CASE(testAllToggleSequence){
     BOOST_CHECK_EQUAL(countHighsB(steps*4), steps*2);
   }  
 }
+
+BOOST_AUTO_TEST_CASE(testRotateTriggerAndCount){
+  PinFixture fixture;
+  setTriggerModeA();
+  setTriggerModeB();
+  for(float len = 0.0; len < 1.0; len += 0.05){
+    for(float fill = 0.0; fill < 1.0; fill += 0.05){
+      setFillA(fill);
+      setFillB(fill);
+      setStepA(len);
+      setStepB(len);
+      loop();
+      int steps = seqA.length*2;
+      int a = countHighsA(steps);
+      int b = countHighsB(steps);
+      for(float rot = 0.0; rot < 1.0; rot += 0.05){
+	setRotateA(rot);
+	setRotateB(rot);
+	loop();
+	BOOST_CHECK_EQUAL(countHighsA(steps), a);
+	BOOST_CHECK_EQUAL(countHighsB(steps), b);
+      }
+    }  
+  }
+}
+
+BOOST_AUTO_TEST_CASE(testSimpleChainedMode){  
+  PinFixture fixture;
+  setTriggerModeA();
+  setFillA(0.0);
+  setTriggerModeB();
+  setFillB(0.0);
+  setChainedMode();
+  for(float len = 0.0; len < 1.0; len += 0.025){
+    setStepA(len);
+    setStepB(len);
+    loop();
+    int steps = (seqA.length + seqB.length)*2;
+    BOOST_CHECK_EQUAL(countHighsA(steps), 4);
+    BOOST_CHECK_EQUAL(countHighsA(steps), countHighsB(steps));
+  }  
+}
+
+BOOST_AUTO_TEST_CASE(testComplexChainedMode){  
+  PinFixture fixture;
+  setTriggerModeA();
+  setFillA(0.0);
+  setTriggerModeB();
+  setFillB(0.0);
+  setChainedMode();
+  for(float len = 0.0; len < 1.0; len += 0.025){
+    setStepA(len);
+    setStepB(1.0 - len);
+    loop();
+    int steps = (seqA.length + seqB.length)*2;
+    reset();
+    int a = countHighsA(steps);
+    reset();
+    int b = countHighsB(steps);
+    BOOST_CHECK_EQUAL(a, b);
+    reset();
+    a = firstHighA(steps);
+    reset();
+    b = firstHighB(steps);
+    BOOST_CHECK_EQUAL(a, b);
+  }  
+}
+
+BOOST_AUTO_TEST_CASE(testRotateToggleAndCount){
+  PinFixture fixture;
+  setToggleModeA();
+  setToggleModeB();
+  float fill = 0.0;
+  for(float len = 0.0; len < 1.0; len += 0.05){
+    setFillA(fill);
+    setFillB(fill);
+    setStepA(len);
+    setStepB(len);
+    setRotateA(0.5);
+    setRotateB(0.5);
+    loop();
+    int steps = seqA.length * 2;
+    reset();
+    int a = countHighsA(steps);
+    reset();
+    int b = countHighsB(steps);
+    for(float rot = 0.0; rot < 1.0; rot += 0.05){
+      setRotateA(rot);
+      setRotateB(rot);
+      loop();
+      reset();
+      BOOST_CHECK_EQUAL(countHighsA(steps), a);
+      reset();
+      BOOST_CHECK_EQUAL(countHighsB(steps), b);
+    }
+  }  
+}
+
+// BOOST_AUTO_TEST_CASE(testRotateTriggerAndFindFirst){
+//   PinFixture fixture;
+//   setTriggerModeA();
+//   setTriggerModeB();
+//   setFillA(0.0);
+//   setFillB(0.0);
+//   for(float len = 0.0; len < 1.0; len += 0.05){
+//     setStepA(len);
+//     setStepB(len);
+//     loop();
+//     int steps = seqA.length;
+//     reset();
+//     int a = firstHighA(steps);
+//     int b = firstHighB(steps);
+//     for(float rot = 0.0; rot < 1.0; rot += 0.05){
+//       setRotateA(rot);
+//       setRotateB(1.0-rot);
+//       loop();
+//       reset();
+//       int newA = firstHighA(steps);
+//       reset();
+//       int newB = firstHighB(steps);
+// //       if(newA == 0)
+// // 	BOOST_CHECK(a == seqA.length - 1);
+// //       else
+// // 	BOOST_CHECK(newA >= a);
+// //       if(newB == seqB.length-1)
+// // 	BOOST_CHECK(b == 0);
+// //       else
+// // 	BOOST_CHECK(newB <= b);
+// //       reset();
+//       newA = firstHighA(steps);
+// //       reset();
+//       newB = firstHighB(steps);
+//       printString("a ");
+//       printInteger(newA);
+//       printString(" b ");
+//       printInteger(newB);
+//       printNewline();
+//     }
+//   }  
+// }
