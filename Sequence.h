@@ -34,13 +34,7 @@ public:
   }
 
   void rotate(int8_t steps){
-    int8_t nudge = (steps - offset) % length;
-    if(pos + nudge > length)
-      pos = pos + nudge - length;
-    else if(pos + nudge < 0)
-      pos = pos + nudge + length;
-    else
-      pos = pos + nudge;
+    pos = (length + pos + steps - offset) % length;
     offset = steps;
   }
 
