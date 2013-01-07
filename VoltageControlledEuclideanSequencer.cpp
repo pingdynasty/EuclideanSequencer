@@ -20,17 +20,14 @@ inline bool resetIsHigh(){
   return !(SEQUENCER_RESET_PINS & _BV(SEQUENCER_RESET_PIN));
 }
 
-#define TRIGGERING_BIT  1
-#define ALTERNATING_BIT 2
-
-GateSequencer seqA(SEQUENCER_OUTPUT_PIN_A, 
-		   SEQUENCER_TRIGGER_SWITCH_PIN_A,
-		   SEQUENCER_ALTERNATE_SWITCH_PIN_A,
+GateSequencer seq(SEQUENCER_OUTPUT_PIN, 
+		   0,
+		   SEQUENCER_ALTERNATE_SWITCH_PIN,
 		   SEQUENCER_LED_A_PIN);
 
 /* Reset interrupt */
 SIGNAL(INT0_vect){
-  seqA.reset();
+  seq.reset();
   // hold everything until reset is released
   while(resetIsHigh());
 }
@@ -38,11 +35,11 @@ SIGNAL(INT0_vect){
 /* Clock interrupt */
 SIGNAL(INT1_vect){
   if(clockIsHigh()){
-    seqA.rise();
-    SEQUENCER_LEDS_PORT |= _BV(SEQUENCER_LED_C_PIN);
+    seq.rise();
+    SEQUENCER_LEDS_PORT |= _BV(SEQUENCER_LED_B_PIN);
   }else{
-    seqA.fall();
-    SEQUENCER_LEDS_PORT &= ~_BV(SEQUENCER_LED_C_PIN);
+    seq.fall();
+    SEQUENCER_LEDS_PORT &= ~_BV(SEQUENCER_LED_B_PIN);
   }
   // debug
 //   PORTB ^= _BV(PORTB4);
@@ -60,15 +57,11 @@ void setup(){
   // enables INT0 and INT1
   SEQUENCER_CLOCK_DDR &= ~_BV(SEQUENCER_CLOCK_PIN);
   SEQUENCER_CLOCK_PORT |= _BV(SEQUENCER_CLOCK_PIN); // enable pull-up resistor
-
   SEQUENCER_RESET_DDR &= ~_BV(SEQUENCER_RESET_PIN);
   SEQUENCER_RESET_PORT |= _BV(SEQUENCER_RESET_PIN); // enable pull-up resistor
-
   setup_adc();
-
   SEQUENCER_LEDS_DDR |= _BV(SEQUENCER_LED_A_PIN);
-  SEQUENCER_LEDS_DDR |= _BV(SEQUENCER_LED_C_PIN);
-
+  SEQUENCER_LEDS_DDR |= _BV(SEQUENCER_LED_B_PIN);
   sei();
 
 #ifdef SERIAL_DEBUG
@@ -78,18 +71,18 @@ void setup(){
 }
 
 void loop(){
-  seqA.rotation.update(getAnalogValue(SEQUENCER_ROTATE_CONTROL));
-  seqA.step.update(getAnalogValue(SEQUENCER_STEP_CONTROL));
-  seqA.fill.update(getAnalogValue(SEQUENCER_FILL_CONTROL));
-  seqA.update();
+  seq.rotation.update(getAnalogValue(SEQUENCER_ROTATE_CONTROL));
+  seq.step.update(getAnalogValue(SEQUENCER_STEP_CONTROL));
+  seq.fill.update(getAnalogValue(SEQUENCER_FILL_CONTROL));
+  seq.update();
 
 #ifdef SERIAL_DEBUG
   if(serialAvailable() > 0){
     serialRead();
     printString("a: [");
-    seqA.dump();
+    seq.dump();
     printString("] ");
-    seqA.print();
+    seq.print();
     if(clockIsHigh())
       printString(" clock high");
     if(resetIsHigh())

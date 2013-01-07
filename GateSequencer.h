@@ -40,8 +40,10 @@ public:
   GateSequencer(uint8_t p1, uint8_t p2, uint8_t p3, uint8_t p4):
     step(this), fill(this), rotation(this), mode(DISABLED), recalculate(true),
     output(p1), trigger(p2), alternate(p3), led(p4){
+#ifdef SEQUENCER_TRIGGER_SWITCH_PINS
     SEQUENCER_TRIGGER_SWITCH_DDR &= ~_BV(trigger);
     SEQUENCER_TRIGGER_SWITCH_PORT |= _BV(trigger);
+#endif /* SEQUENCER_TRIGGER_SWITCH_PINS */
     SEQUENCER_ALTERNATE_SWITCH_DDR &= ~_BV(alternate);
     SEQUENCER_ALTERNATE_SWITCH_PORT |= _BV(alternate);
     SEQUENCER_OUTPUT_DDR |= _BV(output);
@@ -121,7 +123,11 @@ public:
     return !(SEQUENCER_OUTPUT_PINS & _BV(output));
   }
   inline bool isTriggering(){
+#ifdef SEQUENCER_TRIGGER_SWITCH_PINS
     return !(SEQUENCER_TRIGGER_SWITCH_PINS & _BV(trigger));
+#else
+    return !isAlternating();
+#endif /* SEQUENCER_TRIGGER_SWITCH_PINS */
   }
   inline bool isAlternating(){
     return !(SEQUENCER_ALTERNATE_SWITCH_PINS & _BV(alternate));
