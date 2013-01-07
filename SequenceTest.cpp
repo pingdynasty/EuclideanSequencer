@@ -158,4 +158,44 @@ BOOST_AUTO_TEST_CASE(testRotatedPosition){
   BOOST_CHECK_EQUAL(15, getIndex(seq));
 }
 
-// todo: test reset, rotate and reset
+BOOST_AUTO_TEST_CASE(testRotateIsStrictlyMonotonic){
+  Sequence32 seq;
+  seq.calculate(16, 1);
+  seq.rotate(0);
+  int prev = getIndex(seq);
+  for(int i=1; i<16; ++i){
+    seq.rotate(i);
+    int current = getIndex(seq);
+    if(prev == 0)
+      BOOST_CHECK(current == seq.length-1);
+    else
+      BOOST_CHECK(current < prev);
+    prev = current;
+  }
+}
+
+BOOST_AUTO_TEST_CASE(testRotateAndResetIsStrictlyMonotonic){
+  Sequence32 seq;
+  for(int len=2; len<=32; ++len){
+    seq.calculate(len, 1);
+    seq.rotate(len);
+    seq.reset();
+    int prev = getIndex(seq);
+    for(int i=len-1; i; --i){
+      seq.next();
+      seq.next();
+      seq.next();
+
+      seq.rotate(i);
+      seq.reset();
+      int current = getIndex(seq);
+      if(prev == seq.length-1)
+	BOOST_CHECK(current == 0);
+      else
+	BOOST_CHECK(current > prev);
+//       printf("%d >= %d\n ", current, prev);
+//       seq.print();
+      prev = current;
+    }
+  }
+}
