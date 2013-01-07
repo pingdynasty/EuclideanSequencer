@@ -78,27 +78,40 @@ SIGNAL(INT0_vect){
   while(resetIsHigh());
 }
 
+#if SEQUENCER_CHAINED_SWITCH_PIN == SEQUENCER_CLOCK_PIN
+#error Chained mode switch and clock input must have different pin numbers!
+#endif
+
+#define NORMAL_AND_LOW   (_BV(SEQUENCER_CHAINED_SWITCH_PIN) | _BV(SEQUENCER_CLOCK_PIN))
+#define NORMAL_AND_HIGH   _BV(SEQUENCER_CHAINED_SWITCH_PIN)
+#define CHAINED_AND_LOW                                       _BV(SEQUENCER_CLOCK_PIN)
+#define CHAINED_AND_HIGH  0
+
 /* Clock interrupt */
 SIGNAL(INT1_vect){
-  if(clockIsHigh()){
-    if(isChained()){
-      combined.rise();
-    }else{
-      seqA.rise();
-      seqB.rise();
-    }
-    SEQUENCER_LEDS_PORT |= _BV(SEQUENCER_LED_C_PIN);
-  }else{
-    if(isChained()){
-      combined.fall();
-    }else{
+  uint8_t mode = 
+    (SEQUENCER_CHAINED_SWITCH_PINS & _BV(SEQUENCER_CHAINED_SWITCH_PIN)) |
+    (SEQUENCER_CLOCK_PINS & _BV(SEQUENCER_CLOCK_PIN));
+  switch(mode){
+  case NORMAL_AND_LOW:
     seqA.fall();
     seqB.fall();
-    }
     SEQUENCER_LEDS_PORT &= ~_BV(SEQUENCER_LED_C_PIN);
+    break;
+  case NORMAL_AND_HIGH:
+    seqA.rise();
+    seqB.rise();
+    SEQUENCER_LEDS_PORT |= _BV(SEQUENCER_LED_C_PIN);
+    break;
+  case CHAINED_AND_LOW:
+    combined.fall();
+    SEQUENCER_LEDS_PORT &= ~_BV(SEQUENCER_LED_C_PIN);
+    break;
+  case CHAINED_AND_HIGH:
+    combined.rise();
+    SEQUENCER_LEDS_PORT |= _BV(SEQUENCER_LED_C_PIN);
+    break;
   }
-  // debug
-//   PORTB ^= _BV(PORTB4);
 }
 
 void setup(){
