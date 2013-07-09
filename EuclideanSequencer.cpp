@@ -5,7 +5,6 @@
 #include <avr/interrupt.h>
 #include "device.h"
 #include "adc_freerunner.cpp"
-#include "DeadbandController.h"
 #include "GateSequencer.h"
 
 #ifdef SERIAL_DEBUG

@@ -2,6 +2,7 @@
 #define _GATE_SEQUENCER_H_
 
 #include "Sequence.h"
+#include "DeadbandController.h"
 
 class GateSequencer : public Sequence<SEQUENCER_BITS_TYPE> {
 public:
