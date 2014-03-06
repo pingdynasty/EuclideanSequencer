@@ -46,7 +46,7 @@ is the metric pattern used by Moussorgsky in Pictures at an Exhibition.
 E(5,12) = [x . . x . x . . x . x .]
 is the Venda clapping pattern of a South African children’s song.
 
-E(5,16)=[x..x..x..x..x....]
+E(5,16)=[x..x..x..x..x...]
 is the Bossa-Nova rhythm necklace of Brazil. The actual Bossa-Nova rhythm usually starts on the third onset as follows: [x . . x . . x . . . x . . x . .]. However, there are other starting places as well, as for example [x . . x . . x . . x . . . x . .].
 
 E(7,8) = [x . x x x x x x]
