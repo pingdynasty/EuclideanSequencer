@@ -104,11 +104,13 @@ void serialFlush()
 	rx_buffer_head = rx_buffer_tail;
 }
 
-#if defined(__AVR_ATmega168__)
-SIGNAL(SIG_USART_RECV)
-#else
-SIGNAL(SIG_UART_RECV)
-#endif
+/* #if defined(__AVR_ATmega168__) */
+/* SIGNAL(SIG_USART_RECV) */
+/* #else */
+/* SIGNAL(SIG_UART_RECV) */
+/* #endif */
+
+SIGNAL(USART_RX_vect)
 {
 #if defined(__AVR_ATmega168__)
 	unsigned char c = UDR0;
