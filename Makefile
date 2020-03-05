@@ -2,13 +2,14 @@ TARGET = EuclideanSequencer
 # INSTALL_DIR = /Users/mars/arduino/arduino-0013
 # INSTALL_DIR = /Applications/Arduino.app/Contents/Resources/Java/
 INSTALL_DIR = /usr/share/arduino/
+PORT ?= usb
 PORT ?= /dev/ttyACM0
 AVRDUDE_PROGRAMMER = stk500v1
 
 F_CPU = 16000000
-# MCU = atmega328p
+MCU = atmega328
 # UPLOAD_RATE = 57600
-MCU = atmega168
+# MCU = atmega168
 UPLOAD_RATE = 19200
 
 ARDUINO = $(INSTALL_DIR)/hardware/cores/arduino
@@ -100,12 +101,25 @@ eep: build/$(TARGET).eep
 lss: build/$(TARGET).lss 
 sym: build/$(TARGET).sym
 
-# Program the device.  
+# Program the device.
 upload: build/$(TARGET).hex
 	$(AVRDUDE) $(AVRDUDE_FLAGS) $(AVRDUDE_WRITE_FLASH)
 
-flash: build/$(TARGET).hex
+flash:
 	$(AVRDUDE) -p $(MCU) -P $(PORT) -c avrispv2 -e -U flash:w:build/$(TARGET).hex
+
+# atmega328p
+EFUSE = FD
+HFUSE = DA
+LFUSE = FF
+
+# # atmega168
+# EFUSE = 00
+# HFUSE = DD
+# LFUSE = FF
+
+fuses:
+	$(AVRDUDE) -p $(MCU) -P $(PORT) -c avrispv2 -u -U efuse:w:0x$(EFUSE):m -U hfuse:w:0x$(HFUSE):m -U lfuse:w:0x$(LFUSE):m
 
 # Display size of file.
 HEXSIZE = $(SIZE) --target=$(FORMAT) build/$(TARGET).hex
