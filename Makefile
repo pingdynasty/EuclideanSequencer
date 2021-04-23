@@ -1,4 +1,15 @@
+ifndef PLATFORM
+PLATFORM = Stoicheia
+endif
+
+ifeq ($(PLATFORM),Stoicheia)
 TARGET = EuclideanSequencer
+CXXSRC = EuclideanSequencer.cpp main.cpp
+else ifeq ($(PLATFORM),Klasmata)
+TARGET = VoltageControlledEuclideanSequencer
+CXXSRC = VoltageControlledEuclideanSequencer.cpp main.cpp
+endif
+
 # INSTALL_DIR = /Users/mars/arduino/arduino-0013
 # INSTALL_DIR = /Applications/Arduino.app/Contents/Resources/Java/
 INSTALL_DIR = /usr/share/arduino/
@@ -14,7 +25,6 @@ UPLOAD_RATE = 19200
 
 ARDUINO = $(INSTALL_DIR)/hardware/cores/arduino
 
-CXXSRC = EuclideanSequencer.cpp main.cpp
 SRC = wiring_serial.c
 
 ############################################################################
